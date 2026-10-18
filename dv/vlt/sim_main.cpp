@@ -42,8 +42,8 @@ int main(int argc, char** argv) {
     chk(dut->ucie_powerdown == PWR_L1, "powerdown should be L1 out of reset");
     chk(dut->ucie_speed == SPEED_64,   "speed should be SPEED_64");
     chk(dut->ucie_width == 0,          "width should be x1");
-    chk(dut->ucie_tx_valid == 0,       "no Tx traffic out of reset");
-    chk(dut->pcie_tready == 0,         "PCIe ingress closed before link-up");
+    chk(dut->ucie_tx_valid == 0,       "no Tx traffic out of reset (nothing queued)");
+    chk(dut->pcie_tready == 1,         "PCIe ingress open at idle (M1: FIFO not full)");
 
     // CSR_CTRL (addr 0x00) reset value
     dut->csr_addr = 0x00; dut->eval();

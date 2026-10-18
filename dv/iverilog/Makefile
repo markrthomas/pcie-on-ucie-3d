@@ -5,7 +5,8 @@ IVERILOG ?= iverilog
 VVP      ?= vvp
 RTL_DIR  := ../../rtl
 COMMON   := ../common
-RTL_SRCS := $(RTL_DIR)/pcie_ucie3d_adapter.sv
+RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
+            $(RTL_DIR)/pcie_ucie3d_adapter.sv
 BUILD    := sim_build
 # The RTL / TBs need Icarus >= 12 (CI uses 12.0).  Fail early with a readable
 # message; IVERILOG_MIN_MAJOR=0 skips the check.
@@ -20,12 +21,20 @@ endif
 endif
 IVEXTRA ?=
 
-.PHONY: smoke clean
+.PHONY: smoke tx clean
 smoke:
 	@mkdir -p $(BUILD)
 	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/smoke.vvp tb_smoke.sv $(RTL_SRCS)
 	$(VVP) $(BUILD)/smoke.vvp | tee $(BUILD)/smoke.log
 	@grep -q "SMOKE PASS" $(BUILD)/smoke.log
+
+# M1 directed Tx test: PCIe frames -> UCIe-3D raw flits (pcie_mac_model source, ucie_phy_model sink)
+tx:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/tx.vvp tb_tx.sv \
+	  $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv $(RTL_SRCS)
+	$(VVP) $(BUILD)/tx.vvp | tee $(BUILD)/tx.log
+	@grep -q "TX PASS" $(BUILD)/tx.log
 
 clean:
 	rm -rf $(BUILD)

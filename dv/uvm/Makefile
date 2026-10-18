@@ -5,7 +5,8 @@
 VERILATOR ?= verilator
 RTL_DIR   := ../../rtl
 TOP       := tb_uvm_top
-RTL_SRCS  := $(RTL_DIR)/pcie_ucie3d_adapter.sv
+RTL_SRCS  := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
+             $(RTL_DIR)/pcie_ucie3d_adapter.sv
 
 UVM_REPO := https://github.com/accellera-official/uvm-core
 UVM_REF  := 78c06547a2a0a29b3dc9dcafae62b75b2ff61544

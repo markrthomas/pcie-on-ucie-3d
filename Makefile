@@ -22,7 +22,7 @@ IVERILOG  ?= iverilog
 RTL_DIR := rtl
 TOP     := pcie_ucie3d_adapter
 RTL_TOP := $(RTL_DIR)/$(TOP).sv
-RTL_SRCS := $(RTL_TOP)
+RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv $(RTL_TOP)
 
 .PHONY: default help lint sim regress coverage formal ci envs crosscheck \
         iverilog vlt uvm systemc cocotb \
@@ -62,7 +62,7 @@ lint:
 sim: iverilog
 
 iverilog:
-	$(MAKE) -C dv/iverilog smoke
+	$(MAKE) -C dv/iverilog smoke tx
 
 regress: lint sim
 	@echo "regress: OK"

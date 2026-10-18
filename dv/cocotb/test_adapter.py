@@ -42,8 +42,8 @@ async def smoke(dut):
 
     chk(int(dut.ucie_powerdown.value) == PWR_L1, "powerdown should be L1 out of reset")
     chk(int(dut.ucie_speed.value) == SPEED_64, "speed should be SPEED_64")
-    chk(int(dut.ucie_tx_valid.value) == 0, "no Tx traffic out of reset")
-    chk(int(dut.pcie_tready.value) == 0, "PCIe ingress closed before link-up")
+    chk(int(dut.ucie_tx_valid.value) == 0, "no Tx traffic out of reset (nothing queued)")
+    chk(int(dut.pcie_tready.value) == 1, "PCIe ingress open at idle (M1: FIFO not full)")
 
     # CSR_CTRL reset value
     dut.csr_addr.value = 0x00

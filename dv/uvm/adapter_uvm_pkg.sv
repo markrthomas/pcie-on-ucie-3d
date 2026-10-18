@@ -40,7 +40,7 @@ package adapter_uvm_pkg;
       if (vif.ucie_powerdown !== PWR_L1) begin errors++; `uvm_error("SMOKE", "powerdown != L1") end
       if (vif.ucie_speed !== SPEED_64)   begin errors++; `uvm_error("SMOKE", "speed != SPEED_64") end
       if (vif.ucie_tx_valid !== 1'b0)    begin errors++; `uvm_error("SMOKE", "Tx active out of reset") end
-      if (vif.pcie_tready !== 1'b0)      begin errors++; `uvm_error("SMOKE", "ingress open before link-up") end
+      if (vif.pcie_tready !== 1'b1)      begin errors++; `uvm_error("SMOKE", "ingress not ready at idle (M1)") end
 
       if (errors == 0) `uvm_info("SMOKE", "UVM SMOKE PASS: reset defaults OK", UVM_NONE)
       else             `uvm_error("SMOKE", "UVM SMOKE FAIL")

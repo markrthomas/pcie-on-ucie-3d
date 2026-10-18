@@ -9,11 +9,12 @@ bump pitch, **no D2D adapter**, **raw mode** (the protocol owns CRC/retry); PCIe
 = PCIe 6 256B FLIT mode; 64 GT/s (Gen) baseline, datapath speed-parametric. See
 [`docs/ucie3d_notes.md`](docs/ucie3d_notes.md).
 
-> **Status — M0 scaffold (2026-10-17).** `make regress` GREEN (Verilator
-> `--lint-only -Wall` default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8
-> refused; Icarus reset/defaults smoke). RTL is a stub (package + top ports +
-> reset-value drives); the datapath and control plane land M1+. Five env smokes
-> build the stub; `dv/common/scenarios.py` + `crosscheck.py` spine in place;
+> **Status — M1 Tx datapath (2026-10-18).** `make regress` GREEN: Verilator
+> `--lint-only -Wall` (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8
+> refused) + Icarus `make sim` — `tb_smoke` reset/defaults **and** `tb_tx`
+> (**115 frames → 512 flits, payloads byte-exact**). The Tx path (async FIFO →
+> framer → egress) is live; the Rx path (M2) and control plane (M3) are stubbed.
+> Five env smokes pass; `dv/common` golden-model spine in place;
 > CI/Docker/Railway + both agent swarms + docs authored. **Local repo only — no
 > remote.** Roadmap + open items: [`docs/PLAN.md`](docs/PLAN.md) §11,
 > [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).

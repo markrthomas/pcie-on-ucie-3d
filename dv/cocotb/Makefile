@@ -8,7 +8,8 @@ RTL_DIR       := ../../rtl
 TOPLEVEL      := pcie_ucie3d_adapter
 MODULE        := test_adapter
 
-VERILOG_SOURCES := $(RTL_DIR)/pcie_ucie3d_adapter.sv
+VERILOG_SOURCES := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
+                   $(RTL_DIR)/pcie_ucie3d_adapter.sv
 COMPILE_ARGS    += -g2012 -I $(RTL_DIR)
 
 ifneq ($(ICARUS_BIN_DIR),)

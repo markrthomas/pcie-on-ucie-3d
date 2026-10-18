@@ -184,7 +184,15 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
 - [x] `rtl/pcie_ucie3d_adapter.sv` top **stub** (ports + reset-value drives;
   x8 refused at elaboration); five env smokes check the reset/defaults contract.
   **Gate: `make regress` (lint + Icarus smoke) — GREEN.**
-### M1 — Tx datapath (pcie→ucie, raw-mode flit framing) + peer BFMs; iverilog `tb_tx`.
+### M1 — Tx datapath ✅ done 2026-10-18
+- [x] `async_fifo` (tx_cdc) + `tx_framer` (256B raw-mode flit assembly) + `tx_egress`
+  (serialise UCIE_BUS_W beats). Top wires the Tx path; no control plane yet, so
+  `tx_en=1` and the ingress is open when the CDC FIFO is not full (M3 adds gating).
+- [x] Peer BFMs `dv/common/pcie_mac_model.sv` (AXI4-S source) + `ucie_phy_model.sv`
+  (UCIe Tx sink + raw-mode flit monitor/checker) + `pcie_pat.svh`.
+- [x] `dv/iverilog/tb_tx.sv`: 115 frames (directed corners + random, back-to-back then
+  gapped) reassembled byte-exact, flit count = Σ ceil(len/240) = 512.
+  **Gate: `make sim` (smoke + tx) — GREEN.**
 ### M2 — Rx datapath + C1 loopback scoreboard (`tb_loop`). Gate: `make regress`.
 ### M3 — Control plane: `ucie_sb_master` + `adapter_ctrl_fsm` + `adapter_rf`
 (bring-up, L1/L2, speed/width, raw↔credit); `tb_pm`, `tb_rxovf`; extend `tb_smoke`
