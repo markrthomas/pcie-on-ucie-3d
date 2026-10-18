@@ -1,14 +1,17 @@
 // ============================================================================
 // pcie_ucie3d_adapter.sv — TOP of the PCIe <-> UCIe-3D raw-mode adapter.
 //
-// STATUS: M1 — the Tx datapath (PCIe -> UCIe-3D) is live:
-//   pcie ingress -> tx_cdc (async FIFO) -> tx_framer (256B flit assembly) ->
-//   tx_egress (serialise raw beats) -> ucie_tx_*.
-// The Rx datapath (M2) and the control plane (sideband master / FSM / register
-// file, M3) are still stubbed: the Rx egress is quiet, and the control/status
-// outputs hold their reset values.  Because there is no FSM yet, the datapath is
-// always enabled (tx_en = 1) and the PCIe ingress is open whenever the Tx CDC
-// FIFO is not full; M3 reintroduces link-up gating.  Ports per docs/PLAN.md §2.
+// STATUS: M2 — both datapaths are live:
+//   Tx: pcie ingress -> tx_cdc (async FIFO) -> tx_framer (256B flit assembly) ->
+//       tx_egress (serialise raw beats) -> ucie_tx_*.
+//   Rx: ucie_rx_* -> rx_ingress (flit-lock on start_flit) -> rx_deframer ->
+//       rx_cdc (async FIFO) -> pcie_egress -> pcie_rx_*.
+// The control plane (sideband master / FSM / register file, M3) is still stubbed:
+// the control/status outputs hold their reset values, the DV-visible Rx error
+// counters are observation points only (no CSR read-back yet), and because there
+// is no FSM the datapath is always enabled (tx_en = 1) and the PCIe ingress is
+// open whenever the Tx CDC FIFO is not full; M3 reintroduces link-up gating.
+// Ports per docs/PLAN.md §2.
 // ============================================================================
 `include "pcie_ucie3d_pkg.sv"
 
@@ -105,12 +108,49 @@ module pcie_ucie3d_adapter
     .ucie_tx_start_flit (ucie_tx_start_flit), .busy (egress_busy)
   );
 
-  // ==== Rx datapath (M2) — stubbed quiet ======================================
-  assign pcie_rx_tvalid = 1'b0;
-  assign pcie_rx_tdata  = '0;
-  assign pcie_rx_tkeep  = '0;
-  assign pcie_rx_tlast  = 1'b0;
-  assign pcie_rx_tuser  = '0;
+  // ==== Rx datapath: UCIe Rx -> flit capture -> deframer -> CDC FIFO -> PCIe AXI-S =
+  logic                               rx_flit_valid, rx_flit_taken, rx_flit_gap;
+  logic [FLIT_BYTES*8-1:0]            rx_flit;
+  logic [PCIE_DATA_W+PCIE_KEEP_W+1:0] rx_fifo_wdata, rx_fifo_rdata;
+  logic                               rx_fifo_winc, rx_fifo_full, rx_fifo_empty, rx_fifo_rinc;
+  logic                               rx_ing_idle, rx_dfr_idle, rx_data_done;
+  logic [15:0]                        rx_cl_remote, rx_fc_lost;
+  logic [$clog2(FIFO_DEPTH):0]        rx_wfree_unused;
+  // DV-visible Rx error counters (observation points until the M3 register file reads them).
+  logic [15:0]                        rx_dropped_flits, rx_lock_errors, rx_bad_flits, rx_aborted_frames;
+
+  rx_ingress u_rx_ingress (
+    .clk (ucie_clk), .rst_n (ucie_rst_n),
+    .ucie_rx_data (ucie_rx_data), .ucie_rx_valid (ucie_rx_valid),
+    .ucie_rx_start_flit (ucie_rx_start_flit),
+    .flit_valid (rx_flit_valid), .flit (rx_flit), .flit_gap (rx_flit_gap),
+    .flit_taken (rx_flit_taken), .idle (rx_ing_idle),
+    .dropped_flits (rx_dropped_flits), .lock_errors (rx_lock_errors),
+    .fc_cl_remote (rx_cl_remote), .fc_lost_cnt (rx_fc_lost)
+  );
+
+  rx_deframer u_rx_deframer (
+    .clk (ucie_clk), .rst_n (ucie_rst_n),
+    .flit_valid (rx_flit_valid), .flit (rx_flit), .flit_gap (rx_flit_gap),
+    .flit_taken (rx_flit_taken), .data_done (rx_data_done),
+    .fifo_wdata (rx_fifo_wdata), .fifo_winc (rx_fifo_winc), .fifo_full (rx_fifo_full),
+    .idle (rx_dfr_idle), .bad_flits (rx_bad_flits), .aborted_frames (rx_aborted_frames)
+  );
+
+  async_fifo #(.W(PCIE_DATA_W+PCIE_KEEP_W+2), .DEPTH(FIFO_DEPTH)) u_rx_cdc (
+    .wclk   (ucie_clk), .wrst_n (ucie_rst_n),
+    .winc   (rx_fifo_winc), .wdata (rx_fifo_wdata),
+    .wfull  (rx_fifo_full), .wfree (rx_wfree_unused),
+    .rclk   (pcie_clk), .rrst_n (pcie_rst_n),
+    .rinc   (rx_fifo_rinc), .rdata (rx_fifo_rdata), .rempty (rx_fifo_empty)
+  );
+
+  pcie_egress u_pcie_egress (
+    .fifo_rdata (rx_fifo_rdata), .fifo_empty (rx_fifo_empty), .fifo_rinc (rx_fifo_rinc),
+    .pcie_rx_tvalid (pcie_rx_tvalid), .pcie_rx_tready (pcie_rx_tready),
+    .pcie_rx_tdata (pcie_rx_tdata), .pcie_rx_tkeep (pcie_rx_tkeep),
+    .pcie_rx_tlast (pcie_rx_tlast), .pcie_rx_tuser (pcie_rx_tuser)
+  );
 
   // ==== Control plane (M3) — stubbed reset values =============================
   assign ucie_speed     = SPEED_64;    // 64 GT/s baseline (UCIe 3.0)
@@ -127,12 +167,16 @@ module pcie_ucie3d_adapter
     endcase
   end
 
-  // ---- observation points / still-unused signals (driven in M2+/M3+) --------
+  // ---- observation points / still-unused signals (consumed by the M3 control plane) --
+  // The Rx error counters and idle/credit nets are DV-visible observation points until
+  // the M3 register file reads them; fold them in so lint stays clean meanwhile.
   /* verilator lint_off UNUSEDSIGNAL */
-  wire unused_obs = (^tx_wfree_unused) ^ framer_idle ^ egress_busy ^ tx_st_any ^ tx_st_data;
-  wire unused_in  = ucie_rst_n ^ (^ucie_rx_data) ^ ucie_rx_valid ^ ucie_rx_start_flit
-                  ^ ucie_link_status ^ ucie_rx_active ^ ucie_rx_elec_idle ^ (^ucie_sb_s2m)
-                  ^ pcie_rx_tready ^ (^pcie_tuser)
+  wire unused_obs = (^tx_wfree_unused) ^ framer_idle ^ egress_busy ^ tx_st_any ^ tx_st_data
+                  ^ (^rx_wfree_unused) ^ rx_ing_idle ^ rx_dfr_idle ^ rx_data_done
+                  ^ (^rx_cl_remote) ^ (^rx_fc_lost)
+                  ^ (^rx_dropped_flits) ^ (^rx_lock_errors) ^ (^rx_bad_flits) ^ (^rx_aborted_frames);
+  wire unused_in  = ucie_link_status ^ ucie_rx_active ^ ucie_rx_elec_idle ^ (^ucie_sb_s2m)
+                  ^ (^pcie_tuser)
                   ^ csr_valid ^ csr_write ^ (^csr_wdata);
   /* verilator lint_on UNUSEDSIGNAL */
 

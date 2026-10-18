@@ -193,7 +193,18 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
 - [x] `dv/iverilog/tb_tx.sv`: 115 frames (directed corners + random, back-to-back then
   gapped) reassembled byte-exact, flit count = Σ ceil(len/240) = 512.
   **Gate: `make sim` (smoke + tx) — GREEN.**
-### M2 — Rx datapath + C1 loopback scoreboard (`tb_loop`). Gate: `make regress`.
+### M2 — Rx datapath + C1 loopback scoreboard ✅ done 2026-10-18
+- [x] `rx_ingress` (flit-lock on `ucie_rx_start_flit`, overflow/lock-error counters,
+  FLOW_CTRL seq/credit view) + `rx_deframer` (unpack payload into PCIe beats, D9 frame
+  abort on gap/sof/bad-header) + `async_fifo` (rx_cdc) + `pcie_egress` (FWFT AXI-S
+  master). Top wires the Rx path on `ucie_clk`→`pcie_clk`; DV-visible error counters
+  (`rx_dropped_flits`/`lock_errors`/`bad_flits`/`aborted_frames`) are observation
+  points until M3's register file reads them.
+- [x] `dv/common/pcie_sink_model.sv` (AXI4-S slave sink + tkeep/abort checker, throttle).
+- [x] `dv/iverilog/tb_loop.sv`: C1 loopback (UCIe Tx wired back to Rx of the same DUT);
+  115 frames (directed corners + random, back-to-back then gapped w/ 90% sink throttle)
+  returned byte-exact; flit count = 512; all Rx error counters 0.
+  **Gate: `make regress` (smoke + tx + loop) — GREEN.**
 ### M3 — Control plane: `ucie_sb_master` + `adapter_ctrl_fsm` + `adapter_rf`
 (bring-up, L1/L2, speed/width, raw↔credit); `tb_pm`, `tb_rxovf`; extend `tb_smoke`
 to the link-up contract.

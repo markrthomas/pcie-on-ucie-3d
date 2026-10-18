@@ -6,6 +6,7 @@ VVP      ?= vvp
 RTL_DIR  := ../../rtl
 COMMON   := ../common
 RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
+            $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
             $(RTL_DIR)/pcie_ucie3d_adapter.sv
 BUILD    := sim_build
 # The RTL / TBs need Icarus >= 12 (CI uses 12.0).  Fail early with a readable
@@ -21,7 +22,7 @@ endif
 endif
 IVEXTRA ?=
 
-.PHONY: smoke tx clean
+.PHONY: smoke tx loop clean
 smoke:
 	@mkdir -p $(BUILD)
 	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/smoke.vvp tb_smoke.sv $(RTL_SRCS)
@@ -35,6 +36,14 @@ tx:
 	  $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv $(RTL_SRCS)
 	$(VVP) $(BUILD)/tx.vvp | tee $(BUILD)/tx.log
 	@grep -q "TX PASS" $(BUILD)/tx.log
+
+# M2 Config-1 loopback: PCIe -> adapter Tx -> UCIe (looped) -> adapter Rx -> PCIe
+loop:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/loop.vvp tb_loop.sv \
+	  $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv $(COMMON)/pcie_sink_model.sv $(RTL_SRCS)
+	$(VVP) $(BUILD)/loop.vvp | tee $(BUILD)/loop.log
+	@grep -q "LOOP PASS" $(BUILD)/loop.log
 
 clean:
 	rm -rf $(BUILD)

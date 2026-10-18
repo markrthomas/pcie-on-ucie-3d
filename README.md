@@ -9,12 +9,13 @@ bump pitch, **no D2D adapter**, **raw mode** (the protocol owns CRC/retry); PCIe
 = PCIe 6 256B FLIT mode; 64 GT/s (Gen) baseline, datapath speed-parametric. See
 [`docs/ucie3d_notes.md`](docs/ucie3d_notes.md).
 
-> **Status — M1 Tx datapath (2026-10-18).** `make regress` GREEN: Verilator
-> `--lint-only -Wall` (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8
-> refused) + Icarus `make sim` — `tb_smoke` reset/defaults **and** `tb_tx`
-> (**115 frames → 512 flits, payloads byte-exact**). The Tx path (async FIFO →
-> framer → egress) is live; the Rx path (M2) and control plane (M3) are stubbed.
-> Five env smokes pass; `dv/common` golden-model spine in place;
+> **Status — M2 Rx datapath + C1 loopback (2026-10-18).** `make regress` GREEN:
+> Verilator `--lint-only -Wall` (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`,
+> x8 refused) + Icarus `make sim` — `tb_smoke` reset/defaults, `tb_tx`
+> (**115 frames → 512 flits**) and `tb_loop` (C1 loopback: **115 frames round-tripped
+> byte-exact, Rx error counters all 0**). Both datapaths are live (Tx: async FIFO →
+> framer → egress; Rx: flit-lock → deframer → async FIFO → egress); the control plane
+> (M3) is stubbed. Five env smokes pass; `dv/common` golden-model spine in place;
 > CI/Docker/Railway + both agent swarms + docs authored. **Local repo only — no
 > remote.** Roadmap + open items: [`docs/PLAN.md`](docs/PLAN.md) §11,
 > [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).
