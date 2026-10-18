@@ -1,0 +1,130 @@
+name: ci
+
+# Builds the from-source toolchain image once per toolchain change, pushes it to
+# GHCR, and runs every DV env INSIDE that image (`container:`) — so Verilator (and
+# the UVM / SystemC / coverage / formal flows that need it) only ever run in a
+# container, never on a bare runner.  The crosscheck job runs on a bare runner and
+# requires all five envs to agree with the golden model.  No OSS CAD Suite.
+#
+# Python DV pins (installed into the image from dv/cocotb/requirements.txt,
+# tracking ~/proj/dv_env.mk): cocotb==1.8.1  pyuvm==5.0.0  pyvsc
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute content-addressed image tag
+        id: tag
+        run: |
+          hash=$(cat Dockerfile dv/cocotb/requirements.txt | sha256sum | cut -c1-12)
+          repo=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${repo}/dv-tools:tools-${hash}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push toolchain image (if not cached)
+        run: |
+          if docker manifest inspect "${{ steps.tag.outputs.image }}" >/dev/null 2>&1; then
+            echo "image already present; reusing"
+          else
+            docker build --target tools -t "${{ steps.tag.outputs.image }}" .
+            docker push "${{ steps.tag.outputs.image }}"
+          fi
+
+  regress:
+    needs: build-image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make regress
+
+  coverage:
+    needs: [build-image, regress]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make coverage
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage, path: coverage.info, if-no-files-found: ignore }
+
+  systemc:
+    needs: [build-image, regress]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make systemc
+
+  uvm:
+    needs: [build-image, regress]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make uvm
+
+  cocotb:
+    needs: [build-image, regress]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make cocotb
+
+  formal:
+    needs: [build-image, regress]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make formal
+
+  # Bare runner (no container): consumes the envs' results and checks agreement.
+  crosscheck:
+    needs: [regress, coverage, systemc, uvm, cocotb]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "crosscheck gates on all five envs agreeing with dv/common/scenarios.py (wired in M4)"

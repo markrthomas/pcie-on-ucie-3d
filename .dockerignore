@@ -1,0 +1,16 @@
+.git
+**/sim_build
+**/sim_build_*
+**/obj_dir
+**/obj_dir_*
+**/logs
+**/logs_*
+**/__pycache__
+dv/uvm/uvm-core
+formal/*_prove
+formal/*_cover
+metrics/_capture
+coverage.info
+coverage.dat
+*.vcd
+*.fst

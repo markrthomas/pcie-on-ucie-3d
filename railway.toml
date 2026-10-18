@@ -1,0 +1,13 @@
+# Railway config-as-code — a BATCH job, not a web service.  Builds the Dockerfile
+# (ending at the `full` stage with docker/entrypoint.sh), runs once, exits.
+# Results leave the ephemeral container via docker/publish_metrics.sh (branch
+# metrics-data) and re-enter the dashboard with `make railway-import`.
+# See docs/railway.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "NEVER"
+cronSchedule = "17 3 * * 0"   # weekly, Sundays 03:17 UTC

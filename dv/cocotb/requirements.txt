@@ -1,0 +1,5 @@
+# DV Python toolchain (pinned to the workspace canon; the CI image installs these).
+# cocotb pin tracks ~/proj/dv_env.mk (COCOTB_PIP_SPEC).
+cocotb==1.8.1
+pyuvm==5.0.0
+pyvsc

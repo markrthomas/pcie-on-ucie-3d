@@ -1,0 +1,58 @@
+# ---- personal scratch (keep docs/NOTES.md if ever added) --------------------
+/NOTES
+/START_NOTES
+*.swp
+*~
+
+# ---- simulation build / run artifacts ---------------------------------------
+dv/*/sim_build/
+dv/*/sim_build_*/
+dv/*/obj_dir/
+dv/*/obj_dir_*/
+dv/*/logs/
+dv/*/logs_*/
+dv/*/fc_run/
+obj_dir/
+__pycache__/
+*.pyc
+
+# cocotb / sim results
+dv/cocotb/results.xml
+dv/cocotb/results.json
+dv/cocotb/results_*.xml
+dv/cocotb/results_*.json
+dv/cocotb/fcov.json
+dv/cocotb/fcov_*.json
+dv/*/results.json
+dv/uvm/build.log
+dv/uvm/run.log
+
+# waveforms
+*.vcd
+*.fst
+*.gtkw.bak
+
+# coverage
+coverage.info
+coverage.dat
+annotated/
+
+# formal (committed: *.sby; generated: task dirs + tool-adapted _*.sby)
+formal/*_prove/
+formal/*_cover/
+formal/_*.sby
+
+# vendored UVM library (cloned at a pinned ref by dv/uvm/Makefile)
+dv/uvm/uvm-core/
+
+# large specs
+docs/*.pdf
+
+# metrics per-run captures (metrics.db + dashboard.html ARE committed)
+metrics/_capture/
+.railway-import/
+docker/last-run-metrics.json
+
+# random regression run dirs (corpus.json IS committed)
+dv/random/runs/
+dv/uvm/make_uvm.out
