@@ -287,7 +287,15 @@ runs; Railway job; swarms finalized.
   trace-resolve (`gtkw_count.tcl`, skipped if gtkwave/xvfb absent). `make wave-<test>` /
   `make waves` / `make wave-check-all` (the last wired into CI's regress job). All 7
   sessions green (48 DUT signals; 53 for upf incl. the PMU).
-- [ ] metrics collectors + dashboard from real runs (next PR).
+- [x] **`metrics/`** — `collect.py` runs + times `METRICS_FLOWS`
+  (`regress,crosscheck,coverage,formal,upf-tb`) and parses the real artifacts into
+  `metrics.db` (every row tagged measured / estimated / not_attributable — never a
+  guessed number); `dashboard.py` renders `dashboard.html` (latest run + history).
+  Measured: flow wall-clock, directed-test frames/flits, each env's scenario agreement
+  vs the golden model, `coverage.info` line %, SymbiYosys prove/cover status; estimated:
+  raw-BW bound, flit efficiency, Yosys(+slang) flop/memory/cell bits. Honest
+  not_attributable: delivered throughput / latency (no sim-time monitor), Fmax / area /
+  power (no gate-level flow — `docs/power_intent.md`), swarm (not run).
 - [ ] Railway batch job (authored; deploy held for explicit go-ahead).
 - [ ] swarms finalized.
 ### M8 — Close-out self-review.
