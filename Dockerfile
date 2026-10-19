@@ -64,6 +64,10 @@ RUN curl -fsSL https://github.com/SRI-CSL/yices2/releases/download/Yices-${YICES
 COPY --from=builder /opt/verilator /opt/verilator
 COPY --from=builder /opt/yosys /opt/yosys
 COPY --from=builder /opt/sby /opt/sby
+# VIRTUAL_ENV marks /opt/venv active so cocotb's embedded GPI (set_program_name_in_venv)
+# points the interpreter at the venv's site-packages instead of system Python — without
+# it the container run hits "No module named 'pygpi'" (PATH alone is not enough).
+ENV VIRTUAL_ENV=/opt/venv
 ENV PATH=/opt/venv/bin:/opt/verilator/bin:/opt/yosys/bin:/opt/sby/bin:/usr/local/bin:/usr/bin:/bin
 # Python DV libs (cocotb / pyuvm / pyvsc) in a venv
 COPY dv/cocotb/requirements.txt /tmp/requirements.txt
