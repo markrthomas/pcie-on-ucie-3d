@@ -48,7 +48,7 @@ tb_loop.dut.ucie_tx_valid
 @28
 tb_loop.dut.ucie_tx_start_flit
 @22
-tb_loop.dut.ucie_tx_data[255:0]
+tb_loop.dut.ucie_tx_data[63:0]
 @22
 tb_loop.dut.ucie_powerdown[1:0]
 @22
@@ -64,7 +64,7 @@ tb_loop.dut.ucie_rx_valid
 @28
 tb_loop.dut.ucie_rx_start_flit
 @22
-tb_loop.dut.ucie_rx_data[255:0]
+tb_loop.dut.ucie_rx_data[63:0]
 @28
 tb_loop.dut.ucie_rx_active
 @28
