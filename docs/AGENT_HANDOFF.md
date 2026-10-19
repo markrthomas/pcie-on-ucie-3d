@@ -56,12 +56,29 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
   **5.0.0**, which the CI image installs. The M0 smokes pass under both.
 - Verilator must be ≥ 5.03x for the UVM env; **do not set `VERILATOR_ROOT`**.
 
+## M6 core (2026-10-19)
+- **`lp/` UPF + power sequencer + power-aware TB done.** `lp/adapter.upf`
+  (authored-not-run, PD_AON/PD_DP, iso/retention/states), `lp/adapter_pmu.sv`
+  (ucie_clk sequencer), `lp/tb_adapter_upf_power.sv`. `make upf-tb` → **UPF-TB PASS**
+  (36 frames, 2 power-down/up); `make upf` → authored-not-run notice, exit 0.
+  `docs/power_intent.md` + `lp/README.md` written.
+- **M6 remainder:** OSS cocotb power-state emulation (`lp/cocotb/`, corruption /
+  isolation / retention) is NOT built — needs a cocotb loopback top for this design
+  (the cocotb env loops back in Python, unlike eth-dj's SV `cocotb_top`). Tracked in
+  `docs/power_intent.md` ("Not yet built").
+
+## CI
+- GitHub private repo `markrthomas/pcie-on-ucie-3d`, default branch `main`.
+- First CI build-image (from-source toolchain) failed on the Yosys step: the pinned
+  `YOSYS_REF=47595d984` needs the **CMake** build, not the legacy `make config-gcc`.
+  Fixed in `Dockerfile` (commit 497b528) to match the known-good reference.
+
 ## How to resume (three steps)
 1. `make regress` (fast) or `make ci` (full: + coverage + formal + 5-env crosscheck),
-   and `make formal` — confirm green.
-2. Pick up **M6** from `docs/PLAN.md` §11: `lp/` UPF (authored, not run) + a power
-   sequencer / `pipe_pmu` analog + `pd-emu` emulation checks (see the sibling eth-dj
-   repo's `lp/`). Gate: `make upf` (notice/exit 0 without a PA simulator) + `make upf-tb`.
+   `make formal`, and `make upf-tb` — confirm green. Check GitHub Actions CI is green.
+2. Finish the **M6 remainder** (cocotb pd-emu) or pick up **M7** from `docs/PLAN.md`
+   §11: GTKWave sessions + `wave_check.py`, metrics collectors + dashboard from real
+   runs, the Railway job, and the swarms finalized.
 3. Keep `rtl/` assertion-free; record any behaviour choice in `OPEN_DECISIONS.md`.
 
 ## Gotchas

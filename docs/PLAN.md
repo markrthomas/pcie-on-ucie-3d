@@ -259,7 +259,21 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
   vs. the reference; a credit-only flit could leak into a post-drain state under FLOW_CTRL.
   Fixed in RTL (default builds byte-identical). See `docs/OPEN_DECISIONS.md` D25.
   **Gate: `make formal` green; SVA bound into the vlt/systemc/uvm runs; `make ci` GREEN.**
-### M6 — `lp/` UPF (authored) + power sequencer + `pd-emu`.
+### M6 — `lp/` UPF (authored) + power sequencer + power-aware TB ✅ core done 2026-10-19
+- [x] `lp/adapter.upf` (IEEE 1801 / UPF 2.1, authored-not-run): PD_AON (control
+  plane + CSRs + flow-control accounting + glue) / PD_DP (switchable datapath, both
+  clock domains), SW_DP header, ISO clamp-0/clamp-1 sets, RET_DP (for
+  `-DDP_RESET_DISABLE`), power states (L0→DP_ON only; L1/L2→ON or OFF).
+- [x] `lp/adapter_pmu.sv` — DV-only power sequencer on ucie_clk (iso→save→off;
+  on→restore→de-iso); `lp/tb_adapter_upf_power.sv` — power-aware TB on the C1
+  loopback harness. `make upf-tb` green: **UPF-TB PASS** (36 frames, 2 power-down/up
+  cycles); `make upf` prints the authored-not-run notice and exits 0.
+- [x] `docs/power_intent.md` (architecture, PMU sequence, what's checked vs not
+  verified) + `lp/README.md`.
+- [ ] **Remaining:** OSS power-state emulation (cocotb on Icarus — corruption /
+  isolation / retention), ported from eth-dj `lp/cocotb/`. Needs a cocotb loopback
+  top for this design (the cocotb env loops back in Python). Tracked in power_intent.md.
+  **Gate: `make upf` (notice, exit 0) + `make upf-tb` (PASS) — met.**
 ### M7 — GTKWave sessions + `wave_check.py`; metrics collectors + dashboard from real
 runs; Railway job; swarms finalized.
 ### M8 — Close-out self-review.

@@ -1,0 +1,102 @@
+## ============================================================================
+## lp/adapter.upf — power intent for pcie_ucie3d_adapter (IEEE 1801-2013, UPF 2.1)
+##
+## STATUS: AUTHORED, NOT RUN.  No OSS tool here reads UPF; this file has not been
+## parsed or simulated by any tool (see docs/power_intent.md).  It must be checked
+## on a commercial power-aware flow (VCS-NLP / Questa-PA / Xcelium-LP) before
+## anything is claimed about it.  `make upf` runs it if such a tool is on PATH,
+## else it only reports the missing tool and exits 0 (owner decision 2026-10-19:
+## commercial runs are not planned here).
+##
+## Scope: the power-aware TB top tb_adapter_upf_power (lp/tb_adapter_upf_power.sv):
+##   dut   = pcie_ucie3d_adapter            u_pmu = adapter_pmu (DV-only sequencer)
+## The DUT has no power ports; all controls come from u_pmu.
+##
+##   PD_AON (always on) : TB, DUT top glue + datapath-reset synchroniser, u_ctrl
+##                        (adapter_ctrl_fsm), u_sb (ucie_sb_master), u_rf
+##                        (adapter_rf), u_fc_ctl (fc_ctl), u_pmu
+##   PD_DP  (switchable): the Tx and Rx datapath, both clock domains
+##                        (pcie_clk: u_tx_gate, u_tx_cdc write side, u_rx_cdc read
+##                        side, u_pcie_egress; ucie_clk: u_tx_framer, u_tx_egress,
+##                        u_rx_ingress, u_rx_deframer)
+## adapter_rf is in PD_AON (not PD_DP): the FSM reads pwr_req from it and the CSR
+## port is the only wake-up path.  fc_ctl is PD_AON so the credit / sequence state
+## survives a low-power episode (OPEN_DECISIONS D16).
+## ============================================================================
+upf_version 2.1
+
+set_scope /tb_adapter_upf_power
+
+## ---- supplies -----------------------------------------------------------------
+create_supply_port VDD -direction in
+create_supply_port VSS -direction in
+create_supply_net  VDD
+create_supply_net  VSS
+create_supply_net  VDD_DP
+connect_supply_net VDD -ports VDD
+connect_supply_net VSS -ports VSS
+
+create_supply_set SS_AON -function {power VDD}    -function {ground VSS}
+create_supply_set SS_DP  -function {power VDD_DP} -function {ground VSS}
+
+## ---- power domains --------------------------------------------------------------
+create_power_domain PD_AON -include_scope -supply {primary SS_AON}
+
+create_power_domain PD_DP -supply {primary SS_DP} -elements { \
+  dut/u_tx_gate     dut/u_tx_cdc      dut/u_tx_framer   dut/u_tx_egress \
+  dut/u_rx_ingress  dut/u_rx_deframer dut/u_rx_cdc      dut/u_pcie_egress }
+
+## ---- power switch (header, controlled by the PMU) --------------------------------
+create_power_switch SW_DP -domain PD_DP \
+  -input_supply_port  {vin  VDD} \
+  -output_supply_port {vout VDD_DP} \
+  -control_port       {en   u_pmu/dp_pwr_en} \
+  -on_state           {sw_on  vin {en}} \
+  -off_state          {sw_off {!en}}
+
+## ---- isolation (PD_DP outputs into PD_AON and to the DUT ports) -------------------
+## Default clamp 0: pcie_tready, pcie_rx_tvalid/tdata/tkeep/tlast/tuser,
+## ucie_tx_data/valid/start_flit, egress busy, Rx counters -> no traffic, no
+## spurious handshakes while PD_DP is off.
+set_isolation ISO_DP_0 -domain PD_DP -applies_to outputs \
+  -isolation_supply_set SS_AON -clamp_value 0 \
+  -isolation_signal u_pmu/dp_iso_en -isolation_sense high -location parent
+
+## Clamp 1: the drain/idle indications the AON control FSM reads, so an isolated
+## datapath reads as "empty, idle, ingress stopped" (never as busy / in-frame).
+set_isolation ISO_DP_1 -domain PD_DP \
+  -elements { dut/u_tx_cdc/rempty dut/u_tx_framer/idle dut/u_rx_ingress/idle \
+              dut/u_tx_gate/stopped } \
+  -isolation_supply_set SS_AON -clamp_value 1 \
+  -isolation_signal u_pmu/dp_iso_en -isolation_sense high -location parent
+
+## ---- retention ------------------------------------------------------------------------
+## NOTE (D18): the default RTL holds PD_DP in reset from ST_LOWPWR to the next
+## ST_DRAIN, so the default build needs NO retention (`make pd`: retain-nothing
+## passes).  The retention below is kept for `-DDP_RESET_DISABLE` builds; a
+## retention-free variant is not planned (no commercial-tool runs).
+##
+## Without the reset, non-retained PD_DP state would come back corrupted with
+## nothing to clear it.  First cut for that build: retain ALL PD_DP sequential
+## state (the datapath is drained before power-down, so the retained pointers /
+## flags are consistent and the FIFO arrays hold no live data).  An area-optimised
+## alternative (retain only the Rx diagnostic counters and add a DP reset on
+## power-up) is what the D18 reset provides — see docs/power_intent.md.
+set_retention RET_DP -domain PD_DP -retention_supply_set SS_AON \
+  -save_signal    {u_pmu/dp_save    high} \
+  -restore_signal {u_pmu/dp_restore high}
+
+## ---- level shifters -------------------------------------------------------------------
+## Single voltage (VDD for both domains when on): none required.
+
+## ---- power states ------------------------------------------------------------------------
+add_power_state SS_AON \
+  -state ON  {-supply_expr {power == `{FULL_ON, 0.80} && ground == `{FULL_ON, 0.00}}}
+add_power_state SS_DP \
+  -state ON  {-supply_expr {power == `{FULL_ON, 0.80} && ground == `{FULL_ON, 0.00}}} \
+  -state OFF {-supply_expr {power == `{OFF}}}
+
+add_power_state PD_DP \
+  -state DP_ON  {-logic_expr {SS_DP == ON}} \
+  -state DP_OFF {-logic_expr {SS_DP == OFF}}
+## Legal system states: link L0 -> DP_ON only; L1/L2 -> DP_ON or DP_OFF.

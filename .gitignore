@@ -13,6 +13,10 @@ dv/*/obj_dir_*/
 dv/*/logs/
 dv/*/logs_*/
 dv/*/fc_run/
+lp/sim_build/
+lp/sim_build_*/
+lp/cocotb/sim_build*/
+lp/upf_pa.log
 obj_dir/
 __pycache__/
 *.pyc
