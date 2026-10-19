@@ -88,6 +88,8 @@ module pcie_ucie3d_adapter
   logic        sb_req, sb_busy, sb_done, sb_timeout;
   logic        ev_op_done, ev_link_timeout;
   logic        tx_st_any, tx_st_data;
+  logic        tx_credit_ok, tx_cr_req;
+  logic [15:0] tx_seq_now, tx_cl_now;
 
   // ==== Tx datapath nets ======================================================
   logic                             tx_fifo_full, tx_fifo_empty, tx_fifo_rinc;
@@ -127,7 +129,11 @@ module pcie_ucie3d_adapter
     else             {stp_s3, stp_s2, stp_s1} <= {stp_s2, stp_s1, ingress_stopped_pcie};
   end
 
-  assign tx_idle = tx_fifo_empty && framer_idle && !egress_busy;
+  // A drain must not be declared complete in the same cycle tx_egress would launch
+  // a credit-only flit (D25): otherwise the FSM leaves ST_DRAIN and that flit is
+  // transmitted in a change / config state (bound SVA a_a3_tx_only_l0 / formal
+  // F-PP1).  tx_cr_req is constant 0 without FLOW_CTRL, so this is a no-op there.
+  assign tx_idle = tx_fifo_empty && framer_idle && !egress_busy && !tx_cr_req;
   // With the datapath reset (default) the Rx path must also be empty before a drain
   // completes, or the reset would cut a frame on its way to the PCIe sink (D18/D11).
 `ifndef DP_RESET_OFF
@@ -219,8 +225,6 @@ module pcie_ucie3d_adapter
   // side).  With FLOW_CTRL = 0 it elaborates to credit_ok = 1 / cr_req = 0, so the
   // datapath is unchanged; with -DFLOW_CTRL_OVERRIDE it gates data flits on remote
   // credit and emits credit-only flits carrying the advertised limit.
-  logic tx_credit_ok, tx_cr_req;
-  logic [15:0] tx_seq_now, tx_cl_now;
   fc_ctl u_fc_ctl (
     .clk (ucie_clk), .rst_n (ucie_rst_n),
     .dfr_data_done (rx_data_done), .lost_cnt (rx_fc_lost),

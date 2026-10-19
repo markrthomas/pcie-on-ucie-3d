@@ -244,7 +244,21 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
 - [x] Coverage floor enforced: `dv/common/covcheck.py` over `coverage.info`; the
   scenario run reaches **87.2%** line coverage (floor 80%).
   **Gate: `make ci` (regress + coverage + formal + crosscheck) — GREEN.**
-### M5 — `dv/sva/` + `formal/*.sby` + `ASSERTIONS.md`.
+### M5 — bind-based SVA + SymbiYosys formal + `ASSERTIONS.md` ✅ done 2026-10-19
+- [x] `dv/sva/adapter_sva.sv` (bound into `pcie_ucie3d_adapter`) + `dv/sva/async_fifo_sva.sv`
+  (bound into every `async_fifo`): PCIe stream legality, UCIe Tx L0/framing, sideband
+  ordering + m2s framing, CDC FIFO push/pop + occupancy/Gray-code safety, plus covers.
+  Bound with `--assert` into the vlt / systemc / uvm runs (`SVA=1` default; coverage
+  build omits it — a Verilator 5.0xx `--assert`+`--coverage` internal error).
+- [x] `formal/*.sby` (prove + cover) proven green: `async_fifo` (CDC safety, multiclock),
+  `ingress_gate` (drain gate), `ctrl` (`adapter_ctrl_fsm`+`ucie_sb_master`+`tx_egress`,
+  default **and** `-DFLOW_CTRL_OVERRIDE`), `fc` (`fc_ctl` credit scheme). `formal/Makefile`
+  auto-adapts the slang frontend (plugin vs built-in) and the smtbmc solver (yices→z3).
+- [x] `ASSERTIONS.md` is the single property inventory (sim + formal) with results.
+- [x] **Finding D25:** the new A3 / F-PP1 caught a missing `tx_idle` guard (`&& !tx_cr_req`)
+  vs. the reference; a credit-only flit could leak into a post-drain state under FLOW_CTRL.
+  Fixed in RTL (default builds byte-identical). See `docs/OPEN_DECISIONS.md` D25.
+  **Gate: `make formal` green; SVA bound into the vlt/systemc/uvm runs; `make ci` GREEN.**
 ### M6 — `lp/` UPF (authored) + power sequencer + `pd-emu`.
 ### M7 — GTKWave sessions + `wave_check.py`; metrics collectors + dashboard from real
 runs; Railway job; swarms finalized.

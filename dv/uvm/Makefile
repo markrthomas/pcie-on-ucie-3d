@@ -16,8 +16,11 @@ UVM_REF  := 78c06547a2a0a29b3dc9dcafae62b75b2ff61544
 UVM_DIR  := uvm-core
 
 VDEFS  ?=
+# bind-based SVA (dv/sva): on by default; SVA=0 builds without it
+SVA      ?= 1
+SVA_SRCS := $(if $(filter 1,$(SVA)),../sva/async_fifo_sva.sv ../sva/adapter_sva.sv)
 VFLAGS := --binary --timing -Wall -Wno-fatal --top-module $(TOP) \
-          +define+UVM_NO_DPI -I$(RTL_DIR) -I$(COMMON) -I$(UVM_DIR)/src $(VDEFS) $(UVM_DIR)/src/uvm_pkg.sv
+          +define+UVM_NO_DPI $(if $(filter 1,$(SVA)),--assert) -I$(RTL_DIR) -I$(COMMON) -I$(UVM_DIR)/src $(VDEFS) $(UVM_DIR)/src/uvm_pkg.sv
 
 .PHONY: smoke scen fc uvm-core clean
 
@@ -31,7 +34,7 @@ uvm-core:
 smoke: uvm-core
 	@if [ ! -d $(UVM_DIR) ]; then echo "[uvm] uvm-core unavailable; skipping local run (runs in the CI image)"; exit 0; fi
 	$(VERILATOR) $(VFLAGS) --Mdir obj_dir -o uvm_smoke \
-	  $(RTL_DIR)/pcie_ucie3d_pkg.sv adapter_if.sv adapter_uvm_pkg.sv tb_uvm_top.sv $(RTL_SRCS) 2>&1 | tee build.log
+	  $(RTL_DIR)/pcie_ucie3d_pkg.sv adapter_if.sv adapter_uvm_pkg.sv tb_uvm_top.sv $(RTL_SRCS) $(SVA_SRCS) 2>&1 | tee build.log
 	./obj_dir/uvm_smoke +UVM_TESTNAME=smoke_test 2>&1 | tee run.log
 	@grep -q "UVM SMOKE PASS" run.log
 
@@ -40,7 +43,7 @@ scen: uvm-core
 	@if [ ! -d $(UVM_DIR) ]; then echo "[uvm] uvm-core unavailable; skipping local run (runs in the CI image)"; exit 0; fi
 	@mkdir -p logs
 	$(VERILATOR) $(VFLAGS) --Mdir obj_dir_scen -o uvm_scen \
-	  $(RTL_DIR)/pcie_ucie3d_pkg.sv adapter_if.sv adapter_uvm_pkg.sv tb_uvm_top.sv $(RTL_SRCS) 2>&1 | tee build.log
+	  $(RTL_DIR)/pcie_ucie3d_pkg.sv adapter_if.sv adapter_uvm_pkg.sv tb_uvm_top.sv $(RTL_SRCS) $(SVA_SRCS) 2>&1 | tee build.log
 	./obj_dir_scen/uvm_scen +UVM_TESTNAME=scen_test 2>&1 | tee run.log
 	@grep -q "UVM SCEN PASS" run.log
 	python3 $(COMMON)/crosscheck.py --require uvm logs/results.json

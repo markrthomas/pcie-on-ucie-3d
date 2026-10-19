@@ -2,9 +2,22 @@
 
 Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 
-## Current state (2026-10-18)
-- **M4 complete** (on branch `claude/m1-tx-datapath`). **M0 scaffold** on `main`;
-  **M1 Tx / M2 Rx / M3 control plane** committed on this branch.
+## Current state (2026-10-19)
+- **M5 complete** (on branch `claude/m1-tx-datapath`). **M0 scaffold** on `main`;
+  **M1 Tx / M2 Rx / M3 control plane / M4 five-env + fc + playground** committed on
+  this branch.
+- **M5 — bind-based SVA + SymbiYosys formal.** `dv/sva/adapter_sva.sv` (bound into
+  the top) + `dv/sva/async_fifo_sva.sv` (bound into every FIFO), `--assert` in the
+  vlt/systemc/uvm runs (`SVA=1` default; the vlt **coverage** build omits the bind
+  — Verilator 5.0xx `--assert`+`--coverage` internal error). `formal/` has four
+  `.sby` (async_fifo, ingress_gate, ctrl [nofc+fc], fc), each prove + cover, all
+  green via `make formal`; `formal/Makefile` auto-adapts slang (plugin vs built-in)
+  and the smtbmc solver (yices→z3, since this box has z3 not yices). Inventory +
+  results in `ASSERTIONS.md`.
+- **RTL fix D25:** A3 / F-PP1 caught `tx_idle` missing the `&& !tx_cr_req` guard the
+  reference carries — under FLOW_CTRL a credit-only flit could leak into a post-drain
+  state. Fixed in `rtl/pcie_ucie3d_adapter.sv`; default builds byte-identical, fc
+  crosscheck unchanged (209 credit-only flits). See `docs/OPEN_DECISIONS.md` D25.
 - `make ci` **GREEN**: lint (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8
   refused), the Icarus suite (`make -C dv/iverilog smoke tx loop pm rxovf scen pcie_b2b
   ucie_b2b`), **coverage 87.2%** (floor 80%, `dv/common/covcheck.py`), formal (skips if
@@ -44,11 +57,11 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 - Verilator must be ≥ 5.03x for the UVM env; **do not set `VERILATOR_ROOT`**.
 
 ## How to resume (three steps)
-1. `make regress` (fast) or `make ci` (full: + coverage + 5-env crosscheck) — confirm green.
-2. Pick up **M5** from `docs/PLAN.md` §11: bind-based SVA in `dv/sva/` (RTL stays
-   assertion-free), `formal/*.sby` (bmc + cover) on the key properties, and `ASSERTIONS.md`.
-   The `--assert` flag and a `dv/sva/*_sva.sv` bind set are the pattern (see the sibling
-   eth-dj repo's `dv/sva/`). Gate: `make formal`, SVA bound into the vlt/uvm runs.
+1. `make regress` (fast) or `make ci` (full: + coverage + formal + 5-env crosscheck),
+   and `make formal` — confirm green.
+2. Pick up **M6** from `docs/PLAN.md` §11: `lp/` UPF (authored, not run) + a power
+   sequencer / `pipe_pmu` analog + `pd-emu` emulation checks (see the sibling eth-dj
+   repo's `lp/`). Gate: `make upf` (notice/exit 0 without a PA simulator) + `make upf-tb`.
 3. Keep `rtl/` assertion-free; record any behaviour choice in `OPEN_DECISIONS.md`.
 
 ## Gotchas

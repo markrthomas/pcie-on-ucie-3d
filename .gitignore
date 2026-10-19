@@ -37,10 +37,13 @@ coverage.info
 coverage.dat
 annotated/
 
-# formal (committed: *.sby; generated: task dirs + tool-adapted _*.sby)
+# formal (committed: *.sby + *_fv.sv; generated: task workdirs + tool-adapted _*.sby)
+formal/_*.sby
+formal/_*/
 formal/*_prove/
 formal/*_cover/
-formal/_*.sby
+formal/*_prove_fc/
+formal/*_cover_fc/
 
 # vendored UVM library (cloned at a pinned ref by dv/uvm/Makefile)
 dv/uvm/uvm-core/

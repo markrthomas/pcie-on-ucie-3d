@@ -1,0 +1,32 @@
+# Control plane + Tx (adapter_ctrl_fsm + ucie_sb_master + tx_egress):
+# prove (PDR, unbounded) + cover, built both without and with FLOW_CTRL.
+[tasks]
+prove pv nofc
+cover cv nofc
+prove_fc pv fc
+cover_fc cv fc
+
+[options]
+pv: mode prove
+cv: mode cover
+cv: depth 80
+
+[engines]
+pv: abc pdr
+cv: smtbmc yices
+
+[script]
+# The RTL imports the package in module headers, which the native Yosys parser
+# rejects; the yosys-slang frontend (built into upstream Yosys as read_slang, or the
+# OSS CAD Suite's `plugin -i slang`; formal/Makefile adapts) reads it.
+plugin -i slang
+nofc: read_slang --single-unit -D FORMAL -I . --top ctrl_fv pcie_ucie3d_pkg.sv adapter_ctrl_fsm.sv ucie_sb_master.sv tx_egress.sv ctrl_fv.sv
+fc:   read_slang --single-unit -D FORMAL -D FLOW_CTRL_OVERRIDE -I . --top ctrl_fv pcie_ucie3d_pkg.sv adapter_ctrl_fsm.sv ucie_sb_master.sv tx_egress.sv ctrl_fv.sv
+prep -top ctrl_fv
+
+[files]
+../rtl/pcie_ucie3d_pkg.sv
+../rtl/adapter_ctrl_fsm.sv
+../rtl/ucie_sb_master.sv
+../rtl/tx_egress.sv
+ctrl_fv.sv
