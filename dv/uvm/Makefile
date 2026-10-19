@@ -4,20 +4,22 @@
 # set VERILATOR_ROOT.  uvm-core is git-cloned at a pinned ref (git-ignored).
 VERILATOR ?= verilator
 RTL_DIR   := ../../rtl
+COMMON    := ../common
 TOP       := tb_uvm_top
 RTL_SRCS  := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
              $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
-             $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
+             $(RTL_DIR)/fc_ctl.sv $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
              $(RTL_DIR)/pcie_ucie3d_adapter.sv
 
 UVM_REPO := https://github.com/accellera-official/uvm-core
 UVM_REF  := 78c06547a2a0a29b3dc9dcafae62b75b2ff61544
 UVM_DIR  := uvm-core
 
+VDEFS  ?=
 VFLAGS := --binary --timing -Wall -Wno-fatal --top-module $(TOP) \
-          +define+UVM_NO_DPI -I$(RTL_DIR) -I$(UVM_DIR)/src $(UVM_DIR)/src/uvm_pkg.sv
+          +define+UVM_NO_DPI -I$(RTL_DIR) -I$(COMMON) -I$(UVM_DIR)/src $(VDEFS) $(UVM_DIR)/src/uvm_pkg.sv
 
-.PHONY: smoke fc uvm-core clean
+.PHONY: smoke scen fc uvm-core clean
 
 uvm-core:
 	@if [ ! -d $(UVM_DIR) ]; then \
@@ -33,8 +35,18 @@ smoke: uvm-core
 	./obj_dir/uvm_smoke +UVM_TESTNAME=smoke_test 2>&1 | tee run.log
 	@grep -q "UVM SMOKE PASS" run.log
 
+# M4 shared scenario set -> logs/results.json -> crosscheck
+scen: uvm-core
+	@if [ ! -d $(UVM_DIR) ]; then echo "[uvm] uvm-core unavailable; skipping local run (runs in the CI image)"; exit 0; fi
+	@mkdir -p logs
+	$(VERILATOR) $(VFLAGS) --Mdir obj_dir_scen -o uvm_scen \
+	  $(RTL_DIR)/pcie_ucie3d_pkg.sv adapter_if.sv adapter_uvm_pkg.sv tb_uvm_top.sv $(RTL_SRCS) 2>&1 | tee build.log
+	./obj_dir_scen/uvm_scen +UVM_TESTNAME=scen_test 2>&1 | tee run.log
+	@grep -q "UVM SCEN PASS" run.log
+	python3 $(COMMON)/crosscheck.py --require uvm logs/results.json
+
 fc:
-	@echo "[uvm fc] flow-control scenario run lands in M4 (docs/PLAN.md §11)"
+	$(MAKE) scen VDEFS=+define+FLOW_CTRL_OVERRIDE
 
 clean:
-	rm -rf obj_dir build.log run.log
+	rm -rf obj_dir obj_dir_scen build.log run.log logs

@@ -10,7 +10,7 @@ BFMS     := $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv \
             $(COMMON)/pcie_sink_model.sv $(COMMON)/ucie_sb_model.sv
 RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
             $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
-            $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
+            $(RTL_DIR)/fc_ctl.sv $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
             $(RTL_DIR)/pcie_ucie3d_adapter.sv
 BUILD    := sim_build
 # The RTL / TBs need Icarus >= 12 (CI uses 12.0).  Fail early with a readable
@@ -26,7 +26,7 @@ endif
 endif
 IVEXTRA ?=
 
-.PHONY: smoke tx loop pm rxovf clean
+.PHONY: smoke tx loop pm rxovf scen pcie_b2b ucie_b2b clean
 # M3 smoke: reset/defaults + link-up (needs the remote-die control model)
 smoke:
 	@mkdir -p $(BUILD)
@@ -62,6 +62,29 @@ rxovf:
 	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/rxovf.vvp tb_rxovf.sv $(BFMS) $(RTL_SRCS)
 	$(VVP) $(BUILD)/rxovf.vvp | tee $(BUILD)/rxovf.log
 	@grep -q "RXOVF PASS" $(BUILD)/rxovf.log
+
+# M4 Config-2: PCIe back-to-back (PCIe FLIT layer / BFM baseline, no adapter)
+pcie_b2b:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/pcie_b2b.vvp tb_pcie_b2b.sv \
+	  $(COMMON)/pcie_mac_model.sv $(COMMON)/pcie_sink_model.sv
+	$(VVP) $(BUILD)/pcie_b2b.vvp | tee $(BUILD)/pcie_b2b.log
+	@grep -q "PCIE_B2B PASS" $(BUILD)/pcie_b2b.log
+
+# M4 Config-3: UCIe-3D back-to-back (two adapters joined at the bump interface)
+ucie_b2b:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/ucie_b2b.vvp tb_ucie_b2b.sv $(BFMS) $(RTL_SRCS)
+	$(VVP) $(BUILD)/ucie_b2b.vvp | tee $(BUILD)/ucie_b2b.log
+	@grep -q "UCIE_B2B PASS" $(BUILD)/ucie_b2b.log
+
+# M4 shared scenario set (dv/common/scenarios.py): 5 scenarios -> results.json
+scen:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/scen.vvp tb_scen.sv $(BFMS) $(RTL_SRCS)
+	$(VVP) $(BUILD)/scen.vvp | tee $(BUILD)/scen.log
+	@grep -q "SCEN PASS" $(BUILD)/scen.log
+	python3 $(COMMON)/crosscheck.py --require iverilog $(BUILD)/results.json
 
 clean:
 	rm -rf $(BUILD)

@@ -28,9 +28,12 @@ FLIT_PAYLOAD_B = 240
 LINKUP_OPS = 2          # L1->L0 + preset sideband write after every reset
 
 # Scenario table: name -> (lengths, control op, pmcnt ops added by the control op)
-#   ctrl "none"          : send all frames
+#   ctrl "none"          : send all frames (pmcnt = LINKUP_OPS only)
 #   ctrl "pm_cycle"      : send first half, drain, CSR L0->L1, CSR L1->L0, send rest
-#   ctrl "speed_change"  : as pm_cycle but Gen(64)->32 GT/s->Gen(64) (+1 preset re-send)
+#                          -> +2 ops (two power transitions, no preset re-send)
+#   ctrl "speed_change"  : send first half, 64->32 GT/s, 32->64 GT/s, send rest
+#                          -> +4 ops: each speed change is a SPEED_CHG op plus a
+#                          preset re-send (PARAM) op in raw mode (D22), x2 changes.
 
 
 def pat(frame_id: int, idx: int) -> int:
@@ -51,7 +54,7 @@ SCENARIOS = {
     "corners":      (lambda: [1, 31, 32, 33, 239, 240, 241, 480, 481, 1500, 4096], "none",        0),
     "random":       (lambda: lcg_lengths(0xC0FFEE, 40),                           "none",         0),
     "pm_cycle":     (lambda: lcg_lengths(7, 16),                                  "pm_cycle",     2),
-    "speed_change": (lambda: lcg_lengths(11, 16),                                 "speed_change", 3),
+    "speed_change": (lambda: lcg_lengths(11, 16),                                 "speed_change", 4),
 }
 ORDER = ["single", "corners", "random", "pm_cycle", "speed_change"]
 

@@ -56,3 +56,4 @@ docker/last-run-metrics.json
 # random regression run dirs (corpus.json IS committed)
 dv/random/runs/
 dv/uvm/make_uvm.out
+dv/uvm/scen_make.out

@@ -9,16 +9,17 @@ bump pitch, **no D2D adapter**, **raw mode** (the protocol owns CRC/retry); PCIe
 = PCIe 6 256B FLIT mode; 64 GT/s (Gen) baseline, datapath speed-parametric. See
 [`docs/ucie3d_notes.md`](docs/ucie3d_notes.md).
 
-> **Status — M3 datapaths + control plane (2026-10-18).** `make regress` GREEN:
-> Verilator `--lint-only -Wall` (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`,
-> x8 refused) + Icarus `make sim` = **smoke + tx + loop + pm + rxovf** — `tb_smoke`
-> (reset + link-up to L0), `tb_tx`/`tb_loop` (**115 frames → 512 flits, looped
-> byte-exact**), `tb_pm` (power/speed/width/preset over the sideband under live traffic;
-> PMCNT=17), `tb_rxovf` (no-backpressure drop/abort + recovery). Both datapaths and the
-> control plane (bring-up FSM + CSRs + 8-bit sideband master, on `ucie_clk`) are live.
-> Five env smokes pass; `dv/common` golden-model spine in place; CI/Docker/Railway +
-> both agent swarms + docs authored. **Local repo only — no remote.** Roadmap + open
-> items: [`docs/PLAN.md`](docs/PLAN.md) §11, [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).
+> **Status — M4 all-five-envs cross-check + C2/C3 + flow control (2026-10-18).**
+> `make ci` GREEN: lint (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8 refused),
+> the Icarus suite (**smoke + tx + loop + pm + rxovf + scen + pcie_b2b + ucie_b2b**), and
+> the **five-environment cross-check** — iverilog, Verilator C++, SystemC, cocotb and UVM
+> each run the shared five scenarios (`dv/common/scenarios.py`) on the Config-1 loopback
+> and agree **byte-exact** (identical crc32 per scenario) via `crosscheck.py`. C2
+> (`tb_pcie_b2b`) and C3 (`tb_ucie_b2b`, two adapters across the raw-mode link, byte-exact
+> both ways) are live; `fc_ctl` credit flow control runs under `-DFLOW_CTRL_OVERRIDE`
+> (credit-only flits + byte-exact); line coverage **87.2%** (floor 80%); the single-file
+> EDA Playground bundle regenerates from the real sources. **Local repo only — no remote.**
+> Roadmap + open items: [`docs/PLAN.md`](docs/PLAN.md) §11, [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).
 
 ## What this adapter does
 PCIe flits enter on an AXI4-Stream-like interface, cross into the UCIe clock domain,

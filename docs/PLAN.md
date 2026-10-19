@@ -133,7 +133,8 @@ assembled by `playground/assemble.py` — net-new to this family of repos.
 
 ## 6. Coverage
 Verilator `--coverage` → `coverage.info` (lcov) at repo root, CI artifact, floor
-**≥ 80%** on datapath + control (from M4). PyVSC covergroups in `dv/cocotb/` →
+**≥ 80%** on datapath + control, enforced by `dv/common/covcheck.py` (M4 shared-scenario
+run: **87.2%** line). PyVSC covergroups in `dv/cocotb/` →
 `fcov.json`: flit sizes, tkeep-last, speed/width combos, L0/L1/L2 transitions,
 sideband opcodes, back-to-back vs gapped, CDC near-full/near-empty. SVA `cover`s counted.
 
@@ -220,10 +221,29 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
   request + L0s + status timeout under live loopback traffic; PMCNT=17, 6 preset writes).
   `tb_rxovf` (no-backpressure drop/abort + recovery, D9). Five env smokes on the M3 gated
   contract. **Gate: `make regress` (smoke + tx + loop + pm + rxovf) — GREEN.**
-- [ ] Raw-mode credit flow control (`fc_ctl`, FLOW_CTRL/D16) deferred: the Tx/Rx hooks
-  elaborate clean but the credit controller lands with M4's shared scenarios.
-### M4 — All 5 envs on the shared scenarios + C2/C3 back-to-back tops + the EDA
-Playground bundle; crosscheck agreement. Gate: `make ci`, coverage ≥ 80%.
+- [x] Raw-mode credit flow control (`fc_ctl`, FLOW_CTRL/D16) landed in M4.
+### M4 — All 5 envs on the shared scenarios + C2/C3 tops + fc_ctl + Playground ✅ done 2026-10-18
+- [x] Shared-scenario runner in every env, each writing the `results.json` schema and
+  self-crosschecking, then `crosscheck.py --require iverilog,vlt,uvm,systemc,cocotb`:
+  `dv/iverilog/tb_scen.sv`, `dv/vlt` + `dv/systemc` on the shared C++ harness
+  `dv/common/cpp/adapter_bfm.h` (POD-struct loopback + remote-die model + sequencer),
+  `dv/cocotb/test_scen.py` (Python BFMs), `dv/uvm` full env (`adapter_uvm_pkg.sv`:
+  sequence/driver/monitor/scoreboard + `ucie_phy_driver` remote die + `csr_agent`).
+  All five agree with `dv/common/scenarios.py` **byte-exact** (identical crc32 per
+  scenario). Golden `speed_change` pmcnt reconciled to the real control plane (D22:
+  preset re-sent on every speed change -> 2 linkup + 4 = 6).
+- [x] C2/C3 directed tops: `dv/iverilog/tb_pcie_b2b.sv` (PCIe FLIT layer / BFM baseline,
+  60 frames endpoint-to-endpoint) and `dv/iverilog/tb_ucie_b2b.sv` (two adapters joined
+  at the bump interface, 40 frames each way across the raw-mode link byte-exact).
+- [x] `fc_ctl.sv` (D16) wired between the Rx FIFO-free/deframe accounting and the Tx flit
+  launch; under `-DFLOW_CTRL_OVERRIDE` data flits are credit-gated and credit-only flits
+  carry the advertised limit (vlt FC run: 209 credit-only flits, byte-exact, crosscheck OK).
+- [x] EDA Playground bundle: `playground/assemble.py` inlines the full RTL + the shared
+  pattern/scenario includes + the UVM TB into `playground/pcie_ucie3d_playground.sv`
+  (smoke_test / scen_test).
+- [x] Coverage floor enforced: `dv/common/covcheck.py` over `coverage.info`; the
+  scenario run reaches **87.2%** line coverage (floor 80%).
+  **Gate: `make ci` (regress + coverage + formal + crosscheck) — GREEN.**
 ### M5 — `dv/sva/` + `formal/*.sby` + `ASSERTIONS.md`.
 ### M6 — `lp/` UPF (authored) + power sequencer + `pd-emu`.
 ### M7 — GTKWave sessions + `wave_check.py`; metrics collectors + dashboard from real

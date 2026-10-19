@@ -214,10 +214,26 @@ module pcie_ucie3d_adapter
     .flit_valid (flit_valid), .flit (flit), .flit_taken (flit_taken), .idle (framer_idle)
   );
 
+  // Link flow-control controller (D16): credit accounting between the Rx FIFO
+  // free space / deframe progress (receive side) and the Tx flit launch (transmit
+  // side).  With FLOW_CTRL = 0 it elaborates to credit_ok = 1 / cr_req = 0, so the
+  // datapath is unchanged; with -DFLOW_CTRL_OVERRIDE it gates data flits on remote
+  // credit and emits credit-only flits carrying the advertised limit.
+  logic tx_credit_ok, tx_cr_req;
+  logic [15:0] tx_seq_now, tx_cl_now;
+  fc_ctl u_fc_ctl (
+    .clk (ucie_clk), .rst_n (ucie_rst_n),
+    .dfr_data_done (rx_data_done), .lost_cnt (rx_fc_lost),
+    .rx_wfree (rx_wfree), .cl_remote (rx_cl_remote),
+    .st_any (tx_st_any), .st_data (tx_st_data),
+    .credit_ok (tx_credit_ok), .cr_req (tx_cr_req),
+    .seq_now (tx_seq_now), .cl_now (tx_cl_now)
+  );
+
   tx_egress u_tx_egress (
     .clk (ucie_clk), .rst_n (`DP_UCIE_RST), .tx_en (tx_en),
     .flit_valid (flit_valid), .flit (flit), .flit_taken (flit_taken),
-    .credit_ok (1'b1), .cr_req (1'b0), .seq_now ('0), .cl_now ('0),
+    .credit_ok (tx_credit_ok), .cr_req (tx_cr_req), .seq_now (tx_seq_now), .cl_now (tx_cl_now),
     .st_any (tx_st_any), .st_data (tx_st_data),
     .ucie_tx_data (ucie_tx_data), .ucie_tx_valid (ucie_tx_valid),
     .ucie_tx_start_flit (ucie_tx_start_flit), .busy (egress_busy)
@@ -280,10 +296,11 @@ module pcie_ucie3d_adapter
 `endif
 
   // ---- observation points / still-unused signals ----------------------------
+  // tx_st_*/rx_data_done/rx_cl_remote/rx_fc_lost/rx_wfree are now consumed by the
+  // flow-control controller; the rest below are observation-only or config-gated.
   /* verilator lint_off UNUSEDSIGNAL */
-  wire unused_obs = (^tx_wfree_unused) ^ tx_st_any ^ tx_st_data ^ sb_busy ^ rx_dfr_idle
-                  ^ rx_data_done ^ (^rx_cl_remote) ^ (^rx_fc_lost) ^ (^pcie_tuser)
-                  ^ rx_out_idle ^ (^rx_wfree);   // used only in the DP-reset-on config
+  wire unused_obs = (^tx_wfree_unused) ^ sb_busy ^ rx_dfr_idle ^ (^pcie_tuser)
+                  ^ rx_out_idle;   // rx_out_idle used only in the DP-reset-on config
   /* verilator lint_on UNUSEDSIGNAL */
 
 endmodule : pcie_ucie3d_adapter

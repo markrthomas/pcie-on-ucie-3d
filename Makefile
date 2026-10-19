@@ -24,7 +24,7 @@ TOP     := pcie_ucie3d_adapter
 RTL_TOP := $(RTL_DIR)/$(TOP).sv
 RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
             $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
-            $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv \
+            $(RTL_DIR)/fc_ctl.sv $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv \
             $(RTL_DIR)/tx_ingress_gate.sv $(RTL_TOP)
 
 .PHONY: default help lint sim regress coverage formal ci envs crosscheck \
@@ -65,19 +65,20 @@ lint:
 sim: iverilog
 
 iverilog:
-	$(MAKE) -C dv/iverilog smoke tx loop pm rxovf
+	$(MAKE) -C dv/iverilog smoke tx loop pm rxovf scen pcie_b2b ucie_b2b
 
 regress: lint sim
 	@echo "regress: OK"
 
 # ---- the three TB configs (docs/PLAN.md §5) ---------------------------------
 # C1 integrated adapter loopback (the shared-scenario harness, all 5 envs).
-config1: iverilog
-# C2 PCIe-only back-to-back / C3 UCIe-3D-only back-to-back baselines (M4).
+config1:
+	$(MAKE) -C dv/iverilog loop scen
+# C2 PCIe-only back-to-back / C3 UCIe-3D-only back-to-back baselines.
 config2:
-	@echo "[config2] PCIe back-to-back baseline — scaffolded, lands in M4 (docs/PLAN.md §11)"
+	$(MAKE) -C dv/iverilog pcie_b2b
 config3:
-	@echo "[config3] UCIe-3D back-to-back baseline — scaffolded, lands in M4 (docs/PLAN.md §11)"
+	$(MAKE) -C dv/iverilog ucie_b2b
 
 # ---- environments -----------------------------------------------------------
 vlt:
@@ -102,8 +103,24 @@ envs-fc: vlt-fc systemc-fc uvm-fc cocotb-fc
 
 ENV_RESULTS := dv/iverilog/sim_build/results.json dv/vlt/logs/results.json dv/uvm/logs/results.json \
                dv/systemc/logs/results.json dv/cocotb/results.json
-crosscheck:
-	python3 dv/common/crosscheck.py $(ENV_RESULTS)
+
+# Run each env's shared-scenario pass (each writes results.json + self-crosschecks),
+# then require all five to agree with dv/common/scenarios.py.
+.PHONY: scen-iverilog scen-vlt scen-systemc scen-cocotb scen-uvm scen-all
+scen-iverilog:
+	$(MAKE) -C dv/iverilog scen
+scen-vlt:
+	$(MAKE) -C dv/vlt scen
+scen-systemc:
+	$(MAKE) -C dv/systemc scen
+scen-cocotb:
+	$(MAKE) -C dv/cocotb scen
+scen-uvm:
+	$(MAKE) -C dv/uvm scen
+scen-all: scen-iverilog scen-vlt scen-systemc scen-cocotb scen-uvm
+
+crosscheck: scen-all
+	python3 dv/common/crosscheck.py --require iverilog,vlt,uvm,systemc,cocotb $(ENV_RESULTS)
 
 # ---- coverage / formal ------------------------------------------------------
 coverage:
@@ -151,7 +168,7 @@ rr-replay:
 	python3 dv/random/rr.py replay --jobs $(JOBS)
 
 # ---- full local CI mirror ---------------------------------------------------
-ci: regress coverage formal envs crosscheck
+ci: regress coverage formal crosscheck
 	@echo "ci: OK"
 
 clean:

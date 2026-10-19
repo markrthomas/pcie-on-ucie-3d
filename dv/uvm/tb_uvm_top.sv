@@ -32,8 +32,11 @@ module tb_uvm_top;
     .csr_wdata (vif.csr_wdata), .csr_rdata (vif.csr_rdata)
   );
 
+  // UVM_NO_DPI disables the DPI +UVM_TESTNAME path, so read it explicitly here.
+  string tn;
   initial begin
     uvm_config_db#(virtual adapter_if)::set(null, "*", "vif", vif);
-    run_test("smoke_test");
+    if (!$value$plusargs("UVM_TESTNAME=%s", tn)) tn = "smoke_test";
+    run_test(tn);
   end
 endmodule

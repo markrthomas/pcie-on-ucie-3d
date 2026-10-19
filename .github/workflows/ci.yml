@@ -58,6 +58,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make regress
+      - uses: actions/upload-artifact@v4
+        with: { name: results-iverilog, path: dv/iverilog/sim_build/results.json, if-no-files-found: ignore }
 
   coverage:
     needs: [build-image, regress]
@@ -72,6 +74,8 @@ jobs:
       - run: make coverage
       - uses: actions/upload-artifact@v4
         with: { name: coverage, path: coverage.info, if-no-files-found: ignore }
+      - uses: actions/upload-artifact@v4
+        with: { name: results-vlt, path: dv/vlt/logs/results.json, if-no-files-found: ignore }
 
   systemc:
     needs: [build-image, regress]
@@ -83,7 +87,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - run: make systemc
+      - run: make -C dv/systemc scen
+      - uses: actions/upload-artifact@v4
+        with: { name: results-systemc, path: dv/systemc/logs/results.json, if-no-files-found: ignore }
 
   uvm:
     needs: [build-image, regress]
@@ -95,7 +101,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - run: make uvm
+      - run: make -C dv/uvm scen
+      - uses: actions/upload-artifact@v4
+        with: { name: results-uvm, path: dv/uvm/logs/results.json, if-no-files-found: ignore }
 
   cocotb:
     needs: [build-image, regress]
@@ -107,7 +115,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - run: make cocotb
+      - run: make -C dv/cocotb scen
+      - uses: actions/upload-artifact@v4
+        with: { name: results-cocotb, path: dv/cocotb/results.json, if-no-files-found: ignore }
 
   formal:
     needs: [build-image, regress]
@@ -127,4 +137,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "crosscheck gates on all five envs agreeing with dv/common/scenarios.py (wired in M4)"
+      - uses: actions/download-artifact@v4
+        with: { pattern: results-*, path: _results }
+      - run: |
+          find _results -name 'results.json' -print
+          python3 dv/common/crosscheck.py --require iverilog,vlt,uvm,systemc,cocotb \
+            $(find _results -name 'results.json')
