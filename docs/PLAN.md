@@ -296,9 +296,17 @@ runs; Railway job; swarms finalized.
   raw-BW bound, flit efficiency, Yosys(+slang) flop/memory/cell bits. Honest
   not_attributable: delivered throughput / latency (no sim-time monitor), Fmax / area /
   power (no gate-level flow — `docs/power_intent.md`), swarm (not run).
-- [ ] Railway batch job (authored; deploy held for explicit go-ahead).
-- [ ] swarms finalized.
-### M8 — Close-out self-review.
+- [x] Railway batch job **authored** (`railway.toml` DOCKERFILE builder,
+  `restartPolicyType=NEVER`, weekly cron; `docker/{entrypoint,publish_metrics}.sh` +
+  `docs/railway.md`). The actual **deploy is held for explicit user go-ahead** — nothing
+  deployed to Railway.
+- [x] Swarms finalized: both `.claude/agents/` sets retargeted to this design's five
+  envs (no stale eth-dj/pipe7 refs), `swarm.yml` `workflow_dispatch`-only, draft-only
+  doctrine preserved (human merges any RTL/DUT behaviour change).
+### M8 — Close-out self-review. **[x]** All gates green (`make lint/sim/regress/coverage/
+formal/ci/clean` [OK]; GitHub Actions all 8 jobs green on `main`; `dv_audit.sh` clean for
+this repo). Waves (#1), metrics (#2) and the UCIe width-label fix (#3) merged to `main`.
+Docs synced. Open items: the Railway deploy (held for go-ahead).
 
 ## 12. Open decisions
 See [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). Headlines: `PCIE_DATA_W` / `UCIE_*`
