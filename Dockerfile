@@ -27,12 +27,18 @@ RUN git clone https://github.com/verilator/verilator /tmp/verilator \
     && autoconf && ./configure --prefix=/opt/verilator && make -j"$(nproc)" && make install \
     && rm -rf /tmp/verilator
 
-# Yosys with the native slang frontend (SystemVerilog) + SBY
+# Yosys with the native slang frontend (SystemVerilog) + SBY.
+# This Yosys ref uses the CMake build (slang is built in natively via frontends/slang);
+# the legacy `make config-gcc` flow no longer exists at this commit.  tcl/readline/
+# editline/ffi OFF (not needed for formal); -j capped so the heavy slang TUs fit a
+# CI runner's RAM.
 RUN git clone --recurse-submodules https://github.com/YosysHQ/yosys /tmp/yosys \
     && cd /tmp/yosys && git checkout ${YOSYS_REF} && git submodule update --init --recursive \
-    && make config-gcc \
-    && make -j4 ENABLE_TCL=0 ENABLE_READLINE=0 ENABLE_EDITLINE=0 ENABLE_LIBFFI=0 ENABLE_ABC=1 \
-    && make install PREFIX=/opt/yosys \
+    && cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/yosys \
+        -DYOSYS_WITHOUT_TCL=ON -DYOSYS_WITHOUT_READLINE=ON \
+        -DYOSYS_WITHOUT_EDITLINE=ON -DYOSYS_WITHOUT_LIBFFI=ON \
+    && cmake --build build -j"$(( $(nproc) < 4 ? $(nproc) : 4 ))" \
+    && cmake --install build \
     && rm -rf /tmp/yosys
 RUN git clone https://github.com/YosysHQ/sby /tmp/sby \
     && cd /tmp/sby && git checkout ${SBY_REF} && make install PREFIX=/opt/sby \
