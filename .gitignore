@@ -17,6 +17,11 @@ lp/sim_build/
 lp/sim_build_*/
 lp/cocotb/sim_build*/
 lp/upf_pa.log
+# lp/cocotb power-state emulation run artifacts (retention_min.txt IS committed)
+lp/cocotb/results.xml
+lp/cocotb/results_ret.xml
+lp/cocotb/pd_results.json
+lp/cocotb/pd_results_ret.json
 obj_dir/
 __pycache__/
 *.pyc

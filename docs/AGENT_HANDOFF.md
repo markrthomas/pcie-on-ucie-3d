@@ -56,16 +56,25 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
   **5.0.0**, which the CI image installs. The M0 smokes pass under both.
 - Verilator must be ≥ 5.03x for the UVM env; **do not set `VERILATOR_ROOT`**.
 
-## M6 core (2026-10-19)
+## M6 complete (2026-10-19)
 - **`lp/` UPF + power sequencer + power-aware TB done.** `lp/adapter.upf`
   (authored-not-run, PD_AON/PD_DP, iso/retention/states), `lp/adapter_pmu.sv`
   (ucie_clk sequencer), `lp/tb_adapter_upf_power.sv`. `make upf-tb` → **UPF-TB PASS**
   (36 frames, 2 power-down/up); `make upf` → authored-not-run notice, exit 0.
   `docs/power_intent.md` + `lp/README.md` written.
-- **M6 remainder:** OSS cocotb power-state emulation (`lp/cocotb/`, corruption /
-  isolation / retention) is NOT built — needs a cocotb loopback top for this design
-  (the cocotb env loops back in Python, unlike eth-dj's SV `cocotb_top`). Tracked in
-  `docs/power_intent.md` ("Not yet built").
+- **OSS power-state emulation `lp/cocotb/` done** (`make pd-emu` → **PD PASS**).
+  `pd_top.sv` (adapter + UCIe Tx→Rx loopback + SV `ucie_sb_model` remote die +
+  `adapter_pmu`; cocotb drives only PCIe + CSR, since our control plane is SV, unlike
+  eth-dj's Python PHY), `pd_emu.py` (corrupts PD_DP registers while off, clamps the ISO
+  nets incl. the UCIe Tx bus, save/restore retention), `test_pd.py` (retention matrix,
+  3 seeds), `check_pd.py`. **Result quantifies D18:** default build (datapath reset ON)
+  retains **0/31754** PD_DP bits and still survives a power cycle; `-DDP_RESET_DISABLE`
+  needs only the 7 `/ctl` control-register groups (**362 bits, 1.1 %**,
+  `lp/cocotb/retention_min.txt`, 67 regs); retain-nothing there is the negative control
+  and fails (FSM stuck at wake). Two bring-up fixes: the Makefile must not pin
+  `ICARUS_BIN_DIR=/usr/bin` (that is Icarus 11 locally; this design needs ≥12 — prepend
+  only if set, like `dv/cocotb`); and the ISO set must clamp the UCIe Tx bus or the
+  (isolation-unaware) SV `ucie_sb_model` flags a corrupted-off datapath's Tx glitch.
 
 ## CI
 - GitHub private repo `markrthomas/pcie-on-ucie-3d`, default branch `main`.
@@ -75,10 +84,12 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 
 ## How to resume (three steps)
 1. `make regress` (fast) or `make ci` (full: + coverage + formal + 5-env crosscheck),
-   `make formal`, and `make upf-tb` — confirm green. Check GitHub Actions CI is green.
-2. Finish the **M6 remainder** (cocotb pd-emu) or pick up **M7** from `docs/PLAN.md`
-   §11: GTKWave sessions + `wave_check.py`, metrics collectors + dashboard from real
-   runs, the Railway job, and the swarms finalized.
+   `make formal`, `make upf-tb`, and `make pd-emu` — confirm green. Check GitHub Actions
+   CI is green.
+2. Pick up **M7** from `docs/PLAN.md` §11: GTKWave sessions + `wave_check.py`, metrics
+   collectors + dashboard from real runs, the Railway job, and the swarms finalized.
+   (M6 is complete — UPF authored, PMU + power-aware TB, and the `lp/cocotb` power-state
+   emulation all done.)
 3. Keep `rtl/` assertion-free; record any behaviour choice in `OPEN_DECISIONS.md`.
 
 ## Gotchas

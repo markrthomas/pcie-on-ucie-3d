@@ -58,6 +58,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make regress
+      - name: power-aware TB, functional only (PMU sequencing; UPF itself is not run)
+        run: make upf-tb
       - uses: actions/upload-artifact@v4
         with: { name: results-iverilog, path: dv/iverilog/sim_build/results.json, if-no-files-found: ignore }
 
@@ -116,6 +118,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make -C dv/cocotb scen
+      - name: PD_DP power-state emulation, datapath-local reset ON (default; retain nothing must pass, D18)
+        run: make pd-emu
+      - name: PD_DP power-state emulation, reset DISABLED (retention matrix + negative control)
+        run: make pd-emu-ret
       - uses: actions/upload-artifact@v4
         with: { name: results-cocotb, path: dv/cocotb/results.json, if-no-files-found: ignore }
 

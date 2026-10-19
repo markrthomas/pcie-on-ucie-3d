@@ -14,5 +14,13 @@
 - `make upf-tb` runs the TB on Icarus **without** power semantics: checks PMU
   sequencing, the no-handshake timing assumption and traffic across L1/L2.
 
-Details, the architecture table and what is **not** verified: `../docs/power_intent.md`.
-The OSS power-state emulation (cocotb) is the tracked M6 remainder — see that doc.
+- `make pd-emu` (root) / `make -C lp/cocotb pd` + `pd-ret` runs the OSS **power-state
+  emulation** in `cocotb/`: `pd_top.sv` (adapter + UCIe loopback + remote-die model +
+  PMU) with `pd_emu.py` emulating PD_DP power-off (state corruption), isolation clamps
+  and retention save/restore — the "UPF-like without UPF" check. Result: with the
+  datapath-local reset ON (default, D18) **no PD_DP retention is needed**; with
+  `-DDP_RESET_DISABLE` only the control registers (362/31754 bits, 1.1 %) must be
+  retained (`cocotb/retention_min.txt`).
+
+Details, the architecture table, the measured retention matrix and what is **not**
+verified: `../docs/power_intent.md`.

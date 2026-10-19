@@ -31,7 +31,7 @@ RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egres
         iverilog vlt uvm systemc cocotb \
         config1 config2 config3 \
         vlt-fc systemc-fc uvm-fc cocotb-fc envs-fc \
-        waves wave-check-all upf upf-tb metrics dashboard stress clean
+        waves wave-check-all upf upf-tb pd-emu pd-emu-ret metrics dashboard stress clean
 
 default: help
 
@@ -48,6 +48,8 @@ help:
 	@echo "  config1|config2|config3   the three TB configs (C1 integrated / C2 PCIe-b2b / C3 UCIe-b2b)"
 	@echo "  upf        UPF TB on a commercial PA simulator if on PATH, else a notice, exit 0"
 	@echo "  upf-tb     functional Icarus run of the power-aware TB (PMU sequencing, no UPF)"
+	@echo "  pd-emu     UPF-like PD_DP power-state emulation (cocotb, default build: retain nothing)"
+	@echo "  pd-emu-ret power-state emulation, -DDP_RESET_DISABLE (retention matrix + negative control)"
 	@echo "  metrics|dashboard   collect run data -> metrics.db -> dashboard.html"
 	@echo "  stress     multi-seed Verilator run of all scenarios"
 	@echo "  clean      remove build artifacts"
@@ -138,6 +140,14 @@ upf:
 	$(MAKE) -C lp upf-pa
 upf-tb:
 	$(MAKE) -C lp upf-tb
+# UPF-like power-state emulation (OSS, cocotb on Icarus).  pd-emu: the default build
+# (datapath-local reset ON, D18) must survive a PD_DP power cycle with NO retention.
+# pd-emu-ret: the -DDP_RESET_DISABLE build needs retention (retain-nothing is the negative
+# control, must fail) and writes the minimal retained set to lp/cocotb/retention_min.txt.
+pd-emu:
+	$(MAKE) -C lp/cocotb pd
+pd-emu-ret:
+	$(MAKE) -C lp/cocotb pd-ret
 
 # ---- metrics ----------------------------------------------------------------
 METRICS_FLOWS ?= regress
