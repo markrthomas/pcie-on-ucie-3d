@@ -151,6 +151,10 @@ pd-emu-ret:
 
 # ---- metrics ----------------------------------------------------------------
 METRICS_FLOWS ?= regress
+# run + time these flows, then collect their real artifacts into metrics/metrics.db.
+# crosscheck runs every env's scenario pass (incl. uvm); drop it from METRICS_FLOWS to
+# skip the UVM build on a box without a UVM-capable Verilator.
+METRICS_FLOWS ?= regress,crosscheck,coverage,formal,upf-tb
 metrics:
 	python3 metrics/collect.py --run $(METRICS_FLOWS) --note "$(METRICS_NOTE)"
 dashboard:
