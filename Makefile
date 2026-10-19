@@ -157,10 +157,19 @@ dashboard:
 	python3 metrics/dashboard.py
 
 # ---- waves / stress ---------------------------------------------------------
-waves:
-	@echo "[waves] per-test GTKWave sessions land in M7 (docs/PLAN.md §11)"
+# per-test waves: run a test with a VCD dump, check the GTKWave session against it,
+# and open it if gtkwave + a display are available.  `make waves` = loop.
+WAVE_TESTS := smoke tx loop pm rxovf scen upf
+waves: wave-loop
+wave-%:
+	@if [ "$*" = "upf" ]; then $(MAKE) -C lp upf-tb WAVES=1; else $(MAKE) -C dv/iverilog $* WAVES=1; fi
+	python3 dv/waves/wave_check.py check $* $$(if [ "$*" = "upf" ]; then echo lp/sim_build/upf_tb.vcd; else echo dv/iverilog/sim_build/$*.vcd; fi)
+	@if command -v gtkwave >/dev/null 2>&1 && [ -n "$$DISPLAY" ]; then \
+	  gtkwave -a dv/waves/$*.gtkw $$(if [ "$*" = "upf" ]; then echo lp/sim_build/upf_tb.vcd; else echo dv/iverilog/sim_build/$*.vcd; fi) & \
+	else echo "wave-$*: gtkwave/DISPLAY not available; open with: gtkwave -a dv/waves/$*.gtkw <dump>"; fi
+# check every test's .gtkw against a fresh dump, no GUI (CI)
 wave-check-all:
-	@echo "[wave-check-all] GTKWave sessions land in M7"
+	@for t in $(WAVE_TESTS); do $(MAKE) --no-print-directory wave-$$t DISPLAY= || exit 1; done
 stress:
 	$(MAKE) -C dv/vlt stress STRESS_SEEDS=$(or $(STRESS_SEEDS),20)
 

@@ -60,6 +60,8 @@ jobs:
       - run: make regress
       - name: power-aware TB, functional only (PMU sequencing; UPF itself is not run)
         run: make upf-tb
+      - name: GTKWave sessions vs fresh dumps (static check; no GUI in CI)
+        run: make wave-check-all
       - uses: actions/upload-artifact@v4
         with: { name: results-iverilog, path: dv/iverilog/sim_build/results.json, if-no-files-found: ignore }
 

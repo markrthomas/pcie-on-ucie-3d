@@ -17,6 +17,10 @@ TB_DEPS  := $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv \
 BUILD    := sim_build
 PA_SRCS  := tb_adapter_upf_power.sv adapter_pmu.sv $(TB_DEPS) $(RTL_SRCS)
 INCS     := -I $(RTL_DIR) -I $(COMMON) -I $(IVDIR)
+# WAVES=1: dump the upf TB to sim_build/upf_tb.vcd for dv/waves/upf.gtkw (make wave-upf).
+WAVES    ?= 0
+WFLAGS    = $(if $(filter 1,$(WAVES)),-DDUMP_TOP=tb_adapter_upf_power ../dv/waves/wave_dump.sv)
+WRUN      = $(if $(filter 1,$(WAVES)),+dumpfile=$(BUILD)/upf_tb.vcd)
 
 # ---- UPF on a commercial power-aware simulator (optional) -------------------------------------
 # Picks the first of vcs (VCS-NLP), xrun (Xcelium), vsim (Questa-PA) found on PATH.  With none of
@@ -54,9 +58,9 @@ endif
 .PHONY: upf-tb clean
 upf-tb:
 	@mkdir -p $(BUILD)
-	$(IVERILOG) -g2012 $(INCS) -o $(BUILD)/upf_tb.vvp \
+	$(IVERILOG) -g2012 $(INCS) $(WFLAGS) -o $(BUILD)/upf_tb.vvp \
 	  tb_adapter_upf_power.sv adapter_pmu.sv $(TB_DEPS) $(RTL_SRCS)
-	$(VVP) $(BUILD)/upf_tb.vvp | tee $(BUILD)/upf_tb.log
+	$(VVP) $(BUILD)/upf_tb.vvp $(WRUN) | tee $(BUILD)/upf_tb.log
 	@grep -q "UPF-TB PASS" $(BUILD)/upf_tb.log
 
 clean:
