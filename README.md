@@ -9,16 +9,16 @@ bump pitch, **no D2D adapter**, **raw mode** (the protocol owns CRC/retry); PCIe
 = PCIe 6 256B FLIT mode; 64 GT/s (Gen) baseline, datapath speed-parametric. See
 [`docs/ucie3d_notes.md`](docs/ucie3d_notes.md).
 
-> **Status — M2 Rx datapath + C1 loopback (2026-10-18).** `make regress` GREEN:
+> **Status — M3 datapaths + control plane (2026-10-18).** `make regress` GREEN:
 > Verilator `--lint-only -Wall` (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`,
-> x8 refused) + Icarus `make sim` — `tb_smoke` reset/defaults, `tb_tx`
-> (**115 frames → 512 flits**) and `tb_loop` (C1 loopback: **115 frames round-tripped
-> byte-exact, Rx error counters all 0**). Both datapaths are live (Tx: async FIFO →
-> framer → egress; Rx: flit-lock → deframer → async FIFO → egress); the control plane
-> (M3) is stubbed. Five env smokes pass; `dv/common` golden-model spine in place;
-> CI/Docker/Railway + both agent swarms + docs authored. **Local repo only — no
-> remote.** Roadmap + open items: [`docs/PLAN.md`](docs/PLAN.md) §11,
-> [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).
+> x8 refused) + Icarus `make sim` = **smoke + tx + loop + pm + rxovf** — `tb_smoke`
+> (reset + link-up to L0), `tb_tx`/`tb_loop` (**115 frames → 512 flits, looped
+> byte-exact**), `tb_pm` (power/speed/width/preset over the sideband under live traffic;
+> PMCNT=17), `tb_rxovf` (no-backpressure drop/abort + recovery). Both datapaths and the
+> control plane (bring-up FSM + CSRs + 8-bit sideband master, on `ucie_clk`) are live.
+> Five env smokes pass; `dv/common` golden-model spine in place; CI/Docker/Railway +
+> both agent swarms + docs authored. **Local repo only — no remote.** Roadmap + open
+> items: [`docs/PLAN.md`](docs/PLAN.md) §11, [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md).
 
 ## What this adapter does
 PCIe flits enter on an AXI4-Stream-like interface, cross into the UCIe clock domain,

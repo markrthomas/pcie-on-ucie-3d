@@ -52,7 +52,7 @@ int sc_main(int argc, char* argv[]) {
     chk(ucie_powerdown.read() == PWR_L1, "powerdown should be L1 out of reset");
     chk(ucie_speed.read() == SPEED_64,   "speed should be SPEED_64");
     chk(ucie_tx_valid.read() == false,   "no Tx traffic out of reset (nothing queued)");
-    chk(pcie_tready.read() == true,      "PCIe ingress open at idle (M1: FIFO not full)");
+    chk(pcie_tready.read() == false,     "PCIe ingress closed before link-up (M3 gating)");
 
     if (errors == 0) { printf("SYSTEMC SMOKE PASS: reset defaults OK\n"); return 0; }
     printf("SYSTEMC SMOKE FAIL: %d error(s)\n", errors); return 1;

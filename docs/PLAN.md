@@ -205,9 +205,23 @@ checks: `make upf-tb` (PMU sequencing) and `make pd-emu` / `pd-emu-ret`
   115 frames (directed corners + random, back-to-back then gapped w/ 90% sink throttle)
   returned byte-exact; flit count = 512; all Rx error counters 0.
   **Gate: `make regress` (smoke + tx + loop) — GREEN.**
-### M3 — Control plane: `ucie_sb_master` + `adapter_ctrl_fsm` + `adapter_rf`
-(bring-up, L1/L2, speed/width, raw↔credit); `tb_pm`, `tb_rxovf`; extend `tb_smoke`
-to the link-up contract.
+### M3 — Control plane ✅ done 2026-10-18
+- [x] `adapter_rf` (CSR read/write: CTRL/SPEEDCFG/STATUS/ERR/RXCNT0/RXCNT1/PMCNT,
+  with the Rx error counters wired to RXCNT0/1 and a saturating op counter in PMCNT),
+  `adapter_ctrl_fsm` (bring-up SBINIT→MBINIT→PARAM, L0/L1/L2 with L2↔L0 via L1,
+  speed/width changes, drain-before-change, SB_TIMEOUT recovery), `ucie_sb_master`
+  (4-byte committed sideband write + ack), `tx_ingress_gate` (close ingress at a frame
+  boundary on drain). Control plane + CSRs run on `ucie_clk` (D7 updated). Datapath-local
+  reset (D18, default on) holds the datapath in reset while in L1/L2.
+- [x] DV `dv/common/ucie_sb_model.sv` (remote-die control BFM: link bring-up handshake,
+  sideband write ack, link_status op pulse, Tx-legality checker).
+- [x] `tb_smoke` extended to the link-up contract (ingress closed until L0, then open;
+  PMCNT=2, one preset write). `tb_pm` (power/speed/width/preset changes + cancelled
+  request + L0s + status timeout under live loopback traffic; PMCNT=17, 6 preset writes).
+  `tb_rxovf` (no-backpressure drop/abort + recovery, D9). Five env smokes on the M3 gated
+  contract. **Gate: `make regress` (smoke + tx + loop + pm + rxovf) — GREEN.**
+- [ ] Raw-mode credit flow control (`fc_ctl`, FLOW_CTRL/D16) deferred: the Tx/Rx hooks
+  elaborate clean but the credit controller lands with M4's shared scenarios.
 ### M4 — All 5 envs on the shared scenarios + C2/C3 back-to-back tops + the EDA
 Playground bundle; crosscheck agreement. Gate: `make ci`, coverage ≥ 80%.
 ### M5 — `dv/sva/` + `formal/*.sby` + `ASSERTIONS.md`.

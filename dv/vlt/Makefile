@@ -7,6 +7,7 @@ RTL_DIR   := ../../rtl
 TOP       := pcie_ucie3d_adapter
 RTL_SRCS  := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
              $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
+             $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
              $(RTL_DIR)/$(TOP).sv
 VFLAGS    := --cc --exe --build -j 0 -Wall -Wno-fatal --top-module $(TOP) -I$(RTL_DIR)
 COV_FLOOR ?= 80

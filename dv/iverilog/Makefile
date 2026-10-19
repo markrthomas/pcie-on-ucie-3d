@@ -5,8 +5,12 @@ IVERILOG ?= iverilog
 VVP      ?= vvp
 RTL_DIR  := ../../rtl
 COMMON   := ../common
+# DV BFMs shared by the directed tests (source, flit monitor, sink, remote-die control).
+BFMS     := $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv \
+            $(COMMON)/pcie_sink_model.sv $(COMMON)/ucie_sb_model.sv
 RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egress.sv \
             $(RTL_DIR)/rx_ingress.sv $(RTL_DIR)/rx_deframer.sv $(RTL_DIR)/pcie_egress.sv \
+            $(RTL_DIR)/adapter_rf.sv $(RTL_DIR)/adapter_ctrl_fsm.sv $(RTL_DIR)/ucie_sb_master.sv $(RTL_DIR)/tx_ingress_gate.sv \
             $(RTL_DIR)/pcie_ucie3d_adapter.sv
 BUILD    := sim_build
 # The RTL / TBs need Icarus >= 12 (CI uses 12.0).  Fail early with a readable
@@ -22,28 +26,42 @@ endif
 endif
 IVEXTRA ?=
 
-.PHONY: smoke tx loop clean
+.PHONY: smoke tx loop pm rxovf clean
+# M3 smoke: reset/defaults + link-up (needs the remote-die control model)
 smoke:
 	@mkdir -p $(BUILD)
-	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/smoke.vvp tb_smoke.sv $(RTL_SRCS)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/smoke.vvp tb_smoke.sv \
+	  $(COMMON)/ucie_sb_model.sv $(RTL_SRCS)
 	$(VVP) $(BUILD)/smoke.vvp | tee $(BUILD)/smoke.log
 	@grep -q "SMOKE PASS" $(BUILD)/smoke.log
 
 # M1 directed Tx test: PCIe frames -> UCIe-3D raw flits (pcie_mac_model source, ucie_phy_model sink)
 tx:
 	@mkdir -p $(BUILD)
-	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/tx.vvp tb_tx.sv \
-	  $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv $(RTL_SRCS)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/tx.vvp tb_tx.sv $(BFMS) $(RTL_SRCS)
 	$(VVP) $(BUILD)/tx.vvp | tee $(BUILD)/tx.log
 	@grep -q "TX PASS" $(BUILD)/tx.log
 
 # M2 Config-1 loopback: PCIe -> adapter Tx -> UCIe (looped) -> adapter Rx -> PCIe
 loop:
 	@mkdir -p $(BUILD)
-	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/loop.vvp tb_loop.sv \
-	  $(COMMON)/pcie_mac_model.sv $(COMMON)/ucie_phy_model.sv $(COMMON)/pcie_sink_model.sv $(RTL_SRCS)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/loop.vvp tb_loop.sv $(BFMS) $(RTL_SRCS)
 	$(VVP) $(BUILD)/loop.vvp | tee $(BUILD)/loop.log
 	@grep -q "LOOP PASS" $(BUILD)/loop.log
+
+# M3 control-plane test: power / speed / width / preset changes under live loopback traffic
+pm:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/pm.vvp tb_pm.sv $(BFMS) $(RTL_SRCS)
+	$(VVP) $(BUILD)/pm.vvp | tee $(BUILD)/pm.log
+	@grep -q "PM PASS" $(BUILD)/pm.log
+
+# M3 Rx overload policy: no-backpressure drop/abort + recovery (D9)
+rxovf:
+	@mkdir -p $(BUILD)
+	$(IVERILOG) -g2012 $(IVEXTRA) -I $(RTL_DIR) -I $(COMMON) -o $(BUILD)/rxovf.vvp tb_rxovf.sv $(BFMS) $(RTL_SRCS)
+	$(VVP) $(BUILD)/rxovf.vvp | tee $(BUILD)/rxovf.log
+	@grep -q "RXOVF PASS" $(BUILD)/rxovf.log
 
 clean:
 	rm -rf $(BUILD)

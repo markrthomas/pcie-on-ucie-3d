@@ -1,10 +1,11 @@
 // ============================================================================
-// dv/iverilog/tb_tx.sv — M1 directed Tx test: PCIe frames -> UCIe-3D raw flits.
+// dv/iverilog/tb_tx.sv — directed Tx test: PCIe frames -> UCIe-3D raw flits.
 // Directed length corners (1/31/32/33/239/240/241/480/...), then random lengths,
 // first back-to-back (FIFO backpressure), then with random gaps.  Every frame is
 // reassembled from the UCIe Tx flits by ucie_phy_model and compared byte-for-byte;
-// the flit count is checked against ceil(len/240).  M1 has no control plane, so
-// the adapter's Tx datapath is always enabled (no link-up handshake here).
+// the flit count is checked against ceil(len/240).  The control plane (M3) brings
+// the link up (one preset sideband write) before any frame is accepted; the UCIe
+// Rx bus is left idle (Tx path only — the loopback is tb_loop).
 // ============================================================================
 `timescale 1ns/1ps
 `include "pcie_ucie3d_pkg.sv"
@@ -29,7 +30,8 @@ module tb_tx;
   ucie_pwr_e               ucie_powerdown;
   ucie_speed_e             ucie_speed;
   wire [1:0]               ucie_width;
-  wire [SB_W-1:0]          sb_m2s;
+  wire [SB_W-1:0]          sb_m2s, sb_s2m;
+  wire                     link_status, rx_active, rx_elec_idle;
 
   pcie_ucie3d_adapter dut (
     .pcie_clk(pcie_clk), .pcie_rst_n(pcie_rst_n),
@@ -41,9 +43,17 @@ module tb_tx;
     .ucie_tx_data(ucie_tx_data), .ucie_tx_valid(ucie_tx_valid), .ucie_tx_start_flit(ucie_tx_start_flit),
     .ucie_rx_data('0), .ucie_rx_valid(1'b0), .ucie_rx_start_flit(1'b0),
     .ucie_speed(ucie_speed), .ucie_width(ucie_width), .ucie_powerdown(ucie_powerdown),
-    .ucie_link_status(1'b0), .ucie_rx_active(1'b0), .ucie_rx_elec_idle(1'b1),
-    .ucie_sb_m2s(sb_m2s), .ucie_sb_s2m(8'h00),
+    .ucie_link_status(link_status), .ucie_rx_active(rx_active), .ucie_rx_elec_idle(rx_elec_idle),
+    .ucie_sb_m2s(sb_m2s), .ucie_sb_s2m(sb_s2m),
     .csr_valid(1'b0), .csr_write(1'b0), .csr_addr('0), .csr_wdata('0), .csr_rdata()
+  );
+
+  ucie_sb_model phyc (
+    .ucie_clk(ucie_clk), .ucie_rst_n(ucie_rst_n),
+    .powerdown(ucie_powerdown), .speed(ucie_speed), .width(ucie_width),
+    .ucie_tx_valid(ucie_tx_valid), .sb_m2s(sb_m2s),
+    .ucie_link_status(link_status), .ucie_rx_active(rx_active),
+    .ucie_rx_elec_idle(rx_elec_idle), .sb_s2m(sb_s2m)
   );
 
   pcie_mac_model mac (
@@ -108,6 +118,7 @@ module tb_tx;
     pcie_rst_n = 1'b0; ucie_rst_n = 1'b0;
     repeat (10) @(posedge ucie_clk);
     pcie_rst_n = 1'b1; ucie_rst_n = 1'b1;
+    wait (dut.ctrl_state == ST_ACTIVE);          // link up before any frame is accepted
     repeat (20) @(posedge pcie_clk);
 
     for (int i = 0; i < N; i++) begin
@@ -125,6 +136,7 @@ module tb_tx;
     if (checked != N)           begin $display("FAIL: %0d/%0d frames received", checked, N); errors++; end
     if (phy.flits != exp_flits) begin $display("FAIL: %0d flits, expected %0d", phy.flits, exp_flits); errors++; end
     if (phy.errors != 0)        begin $display("FAIL: %0d PHY-model error(s)", phy.errors); errors++; end
+    if (phyc.errors != 0)       begin $display("FAIL: %0d control-model error(s)", phyc.errors); errors++; end
 
     if (errors == 0)
       $display("TX PASS: %0d frames, %0d flits, all payloads match", N, phy.flits);

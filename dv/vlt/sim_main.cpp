@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     chk(dut->ucie_speed == SPEED_64,   "speed should be SPEED_64");
     chk(dut->ucie_width == 0,          "width should be x1");
     chk(dut->ucie_tx_valid == 0,       "no Tx traffic out of reset (nothing queued)");
-    chk(dut->pcie_tready == 1,         "PCIe ingress open at idle (M1: FIFO not full)");
+    chk(dut->pcie_tready == 0,         "PCIe ingress closed before link-up (M3 gating)");
 
     // CSR_CTRL (addr 0x00) reset value
     dut->csr_addr = 0x00; dut->eval();
