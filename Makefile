@@ -31,7 +31,7 @@ RTL_SRCS := $(RTL_DIR)/async_fifo.sv $(RTL_DIR)/tx_framer.sv $(RTL_DIR)/tx_egres
         iverilog vlt uvm systemc cocotb \
         config1 config2 config3 \
         vlt-fc systemc-fc uvm-fc cocotb-fc envs-fc \
-        waves wave-check-all upf upf-tb pd-emu pd-emu-ret metrics dashboard stress clean
+        waves wave-check-all upf upf-tb pd-emu pd-emu-ret metrics dashboard railway-import stress clean
 
 default: help
 
@@ -51,6 +51,7 @@ help:
 	@echo "  pd-emu     UPF-like PD_DP power-state emulation (cocotb, default build: retain nothing)"
 	@echo "  pd-emu-ret power-state emulation, -DDP_RESET_DISABLE (retention matrix + negative control)"
 	@echo "  metrics|dashboard   collect run data -> metrics.db -> dashboard.html"
+	@echo "  railway-import      merge the metrics-data branch's Railway runs, re-render the dashboard"
 	@echo "  stress     multi-seed Verilator run of all scenarios"
 	@echo "  clean      remove build artifacts"
 	@echo "  note: uvm needs a UVM-capable Verilator (>= 5.03x, e.g. the from-source Verilator in the CI image)"
@@ -158,6 +159,18 @@ metrics:
 	python3 metrics/collect.py --run $(METRICS_FLOWS) --note "$(METRICS_NOTE)"
 dashboard:
 	python3 metrics/dashboard.py
+# pull the ephemeral Railway batch runs back into the local dashboard: fetch the
+# orphan `metrics-data` branch (per-run dirs written by docker/publish_metrics.sh),
+# merge DIR/runs/*/metrics.db into metrics.db, and re-render.  See docs/railway.md.
+METRICS_REMOTE ?= origin
+railway-import:
+	@tmp=$$(mktemp -d); \
+	 if ! git fetch $(METRICS_REMOTE) metrics-data; then \
+	   echo "railway-import: no metrics-data branch on $(METRICS_REMOTE) (nothing published yet)"; rm -rf $$tmp; exit 1; fi; \
+	 git archive FETCH_HEAD | tar -x -C $$tmp; \
+	 python3 metrics/collect.py --import-dir $$tmp; \
+	 rm -rf $$tmp
+	$(MAKE) dashboard
 
 # ---- waves / stress ---------------------------------------------------------
 # per-test waves: run a test with a VCD dump, check the GTKWave session against it,
