@@ -2,6 +2,27 @@
 
 Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 
+## M7 + M8 complete (2026-10-19) — project at close-out
+- **Workflow switched to PR-flow on GitHub** (supersedes the earlier local-only /
+  no-push decision below). Remote `markrthomas/pcie-on-ucie-3d` exists; work lands via
+  ready-for-review PRs, merged on green CI with the branch deleted (finish-what-you-open).
+- **M7 waves (PR #1, merged `8d46667`)** — `dv/waves/` per-test GTKWave sessions +
+  `wave_check.py`; `make wave-check-all` wired into CI's regress job.
+- **M7 metrics (PR #2, merged `78ef48e`)** — `metrics/collect.py` reads real artifacts
+  into `metrics.db` (measured/estimated/not_attributable, never a guessed number);
+  `dashboard.py` → `dashboard.html`. Committed snapshot: 39 rows, 0 FAIL, coverage
+  **87.22 %**, five envs agree (uvm via CI), 8 formal proofs PASS.
+- **UCIe width-label fix (PR #3, merged `eb828e6`)** — the wave sessions labelled
+  `ucie_tx_data`/`ucie_rx_data` `[255:0]`; corrected to the real 64-bit `UCIE_BUS_W`.
+  Cosmetic (the checker strips the range), no `rtl/` change.
+- **M7 Railway — authored, deploy held.** `railway.toml` + `docker/` scripts complete;
+  nothing deployed to Railway (awaiting explicit user go-ahead).
+- **M7 swarms — finalized.** Both `.claude/agents/` sets retargeted (no stale eth-dj
+  refs), `swarm.yml` dispatch-only, draft-only doctrine preserved.
+- **M8 close-out — all gates green.** `make lint/sim/regress/coverage/formal/ci/clean`
+  [OK]; GitHub Actions all 8 jobs green on `main`; `dv_audit.sh` clean for this repo
+  (the workspace-level FAIL is other early-scaffold siblings).
+
 ## Current state (2026-10-19)
 - **M5 complete** (on branch `claude/m1-tx-datapath`). **M0 scaffold** on `main`;
   **M1 Tx / M2 Rx / M3 control plane / M4 five-env + fc + playground** committed on
@@ -48,7 +69,8 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
   (uvm-core at the pinned ref; slow first build; skips cleanly if uvm-core can't clone).
 - Infra authored, not run against a remote: Dockerfile, CI, `swarm.yml`, railway.toml,
   docker/*, both `.claude/agents/` swarms, metrics/formal/lp scaffolds.
-- **Repo is local only — no GitHub remote, nothing pushed** (user decision).
+- ~~Repo is local only — no GitHub remote~~ (superseded: now on GitHub, PR-flow — see
+  the M7/M8 section at the top).
 
 ### Environment drift to know
 - Local cocotb is **1.9.2** and pyuvm **4.0.1**; the canonical pins
@@ -104,5 +126,6 @@ PRs ready-for-review and finish-what-you-open — **except** the swarms (draft-o
 human merges any RTL/DUT behaviour change). Never fabricate a measured metric.
 
 ## Don't
-Don't set `VERILATOR_ROOT`. Don't weaken a checker to go green. Don't push a remote
-or open a PR this pass (local-only was the user's decision).
+Don't set `VERILATOR_ROOT`. Don't weaken a checker to go green. Don't deploy to Railway
+without explicit user go-ahead (files are authored but nothing is deployed). (The earlier
+local-only / no-push rule is superseded — work now lands via PRs on GitHub.)
