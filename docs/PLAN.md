@@ -43,7 +43,7 @@ Tool pins live in the `Dockerfile` (Verilator 5.050 / Yosys+slang / SBY / yices;
 
 ### Success criteria (definition of done)
 1. `make regress` (lint + primary sim) green locally and in CI.
-2. `make ci` green; line coverage ≥ 80% on the datapath + control.
+2. `make ci` green; line coverage ≥ 99% on the datapath + control.
 3. All five DV envs build and pass their smoke; the three TB configs (§5) run.
 4. SVA bound + passing in the Verilator-based flows; formal proves the flow-control safety properties.
 5. UPF authored + documented; `make upf` runs it if a commercial PA simulator is on PATH, else notice + exit 0.
@@ -108,7 +108,7 @@ The root `Makefile` `-include`s `../dv_env.mk` (pins `cocotb==1.8.1`).
 | # | Env | Simulator | Purpose |
 |---|---|---|---|
 | 1 | `dv/iverilog/` | Icarus 12 | Fast directed golden tests; first bring-up. |
-| 2 | `dv/vlt/` | Verilator C++ | Fast regression + the **coverage** vehicle (`coverage.info`, 80% floor). |
+| 2 | `dv/vlt/` | Verilator C++ | Fast regression + the **coverage** vehicle (`coverage.info`, 99% floor). |
 | 3 | `dv/uvm/` | Verilator + Accellera UVM | UVM env (Verilator ≥ 5.03x; uvm-core cloned at a pinned ref; keep `VERILATOR_ROOT` unset). |
 | 4 | `dv/systemc/` | Verilator → SystemC | TL/system co-sim reference cross-check. |
 | 5 | `dv/cocotb/` | cocotb + PyUVM | Constrained-random + **PyVSC functional coverage** (`fcov.json`). |
@@ -133,8 +133,9 @@ assembled by `playground/assemble.py` — net-new to this family of repos.
 
 ## 6. Coverage
 Verilator `--coverage` → `coverage.info` (lcov) at repo root, CI artifact, floor
-**≥ 80%** on datapath + control, enforced by `dv/common/covcheck.py` (M4 shared-scenario
-run: **87.2%** line). PyVSC covergroups in `dv/cocotb/` →
+**≥ 99%** on datapath + control, enforced by `dv/common/covcheck.py` (M4 shared-scenario
+run alone: 87.2%; M7 adds the directed `dv/vlt/cov_main.cpp` battery + the FLOW_CTRL
+build, merged to **99.6%**; floor raised 80 → 99). PyVSC covergroups in `dv/cocotb/` →
 `fcov.json`: flit sizes, tkeep-last, speed/width combos, L0/L1/L2 transitions,
 sideband opcodes, back-to-back vs gapped, CDC near-full/near-empty. SVA `cover`s counted.
 
@@ -242,7 +243,8 @@ corruption/isolation/retention emulation). Documented in `docs/power_intent.md`.
   pattern/scenario includes + the UVM TB into `playground/pcie_ucie3d_playground.sv`
   (smoke_test / scen_test).
 - [x] Coverage floor enforced: `dv/common/covcheck.py` over `coverage.info`; the
-  scenario run reaches **87.2%** line coverage (floor 80%).
+  scenario run plus the M7 directed coverage battery (`dv/vlt/cov_main.cpp`) and the
+  FLOW_CTRL build reach **99.6%** line coverage (floor 99%).
   **Gate: `make ci` (regress + coverage + formal + crosscheck) — GREEN.**
 ### M5 — bind-based SVA + SymbiYosys formal + `ASSERTIONS.md` ✅ done 2026-10-19
 - [x] `dv/sva/adapter_sva.sv` (bound into `pcie_ucie3d_adapter`) + `dv/sva/async_fifo_sva.sv`

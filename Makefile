@@ -40,7 +40,7 @@ help:
 	@echo "  lint       Verilator --lint-only -Wall on rtl/ (default + FLOW_CTRL + DP_RESET_DISABLE; x8 refused)"
 	@echo "  sim        Icarus directed tests (M0: smoke)"
 	@echo "  regress    lint + sim  — the fast CI gate"
-	@echo "  coverage   Verilator C++ env with --coverage -> coverage.info (floor 80%)"
+	@echo "  coverage   Verilator C++ env with --coverage -> coverage.info (floor 99%)"
 	@echo "  formal     SymbiYosys prove + cover on formal/*.sby"
 	@echo "  iverilog|vlt|uvm|systemc|cocotb   run one DV environment smoke"
 	@echo "  crosscheck all five envs agree with dv/common/scenarios.py (M4+)"
@@ -150,7 +150,6 @@ pd-emu-ret:
 	$(MAKE) -C lp/cocotb pd-ret
 
 # ---- metrics ----------------------------------------------------------------
-METRICS_FLOWS ?= regress
 # run + time these flows, then collect their real artifacts into metrics/metrics.db.
 # crosscheck runs every env's scenario pass (incl. uvm); drop it from METRICS_FLOWS to
 # skip the UVM build on a box without a UVM-capable Verilator.

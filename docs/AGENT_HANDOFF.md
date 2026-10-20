@@ -11,7 +11,17 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 - **M7 metrics (PR #2, merged `78ef48e`)** — `metrics/collect.py` reads real artifacts
   into `metrics.db` (measured/estimated/not_attributable, never a guessed number);
   `dashboard.py` → `dashboard.html`. Committed snapshot: 39 rows, 0 FAIL, coverage
-  **87.22 %**, five envs agree (uvm via CI), 8 formal proofs PASS.
+  **99.6 %**, five envs agree (uvm via CI), 8 formal proofs PASS.
+- **M7 coverage raise 87.2 % → 99.6 %** — `dv/vlt/cov_main.cpp` is a directed,
+  self-checking control-plane + Rx-error battery (mirrors `tb_pm` / `tb_rxovf`: L2
+  power, width, speed, SPEEDCFG, L0s/reserved-width ERR flags, link + sideband
+  timeouts, and raw Rx protocol-slip / overflow / abort / orphan injection). `make
+  coverage` now merges three `--coverage` runs (clean scenarios + this battery +
+  the FLOW_CTRL build) into one `coverage.info`; floor raised 80 → 99
+  (`dv/vlt/Makefile`). The 3 residual lines are two FLOW_CTRL lost-flit inputs and
+  the deliberately-unused raw-mode `pcie_tuser`. Also fixed a stray duplicate
+  `METRICS_FLOWS ?= regress` that had been shadowing the full flow list in the root
+  `Makefile`.
 - **UCIe width-label fix (PR #3, merged `eb828e6`)** — the wave sessions labelled
   `ucie_tx_data`/`ucie_rx_data` `[255:0]`; corrected to the real 64-bit `UCIE_BUS_W`.
   Cosmetic (the checker strips the range), no `rtl/` change.
@@ -41,7 +51,7 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
   crosscheck unchanged (209 credit-only flits). See `docs/OPEN_DECISIONS.md` D25.
 - `make ci` **GREEN**: lint (default + `FLOW_CTRL_OVERRIDE` + `DP_RESET_DISABLE`, x8
   refused), the Icarus suite (`make -C dv/iverilog smoke tx loop pm rxovf scen pcie_b2b
-  ucie_b2b`), **coverage 87.2%** (floor 80%, `dv/common/covcheck.py`), formal (skips if
+  ucie_b2b`), **coverage 99.6%** (floor 99%, `dv/common/covcheck.py`), formal (skips if
   no SBY), and the **five-env cross-check**.
 - **M4 — all five envs agree on `dv/common/scenarios.py`, byte-exact.** Each runs the
   five scenarios on the C1 loopback and writes the `results.json` schema, self-crosschecks,
@@ -118,7 +128,7 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 - `make uvm` needs network the first time (clones uvm-core). In the CI image it is
   pre-cloned. If offline, the Makefile prints a skip notice and exits 0.
 - Icarus emits a benign "unique case qualities ignored" note; not an error.
-- `make coverage` on the stub produces little to cover; the 80% floor is enforced
+- `make coverage` on the stub produces little to cover; the 99% floor is enforced
   from M4 (the Makefile says so).
 
 ## Guardrails (from ~/proj/CLAUDE.md)
