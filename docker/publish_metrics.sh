@@ -11,7 +11,10 @@ cd "$(dirname "$0")/.."
 REPO="${METRICS_REPO:-markrthomas/pcie-on-ucie-3d}"
 BRANCH="metrics-data"
 TS="$(date -u +%Y%m%d-%H%M%S)"
-URL="https://github.com/${REPO}.git"
+# Default to GitHub over HTTPS (auth via the http extraheader below).  METRICS_GIT_URL
+# overrides it with any git remote — used to exercise this publish path against a local
+# bare repo without GitHub (the github-scoped extraheader is simply ignored off github.com).
+URL="${METRICS_GIT_URL:-https://github.com/${REPO}.git}"
 HDR="http.https://github.com/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
 
 tmp="$(mktemp -d)"
