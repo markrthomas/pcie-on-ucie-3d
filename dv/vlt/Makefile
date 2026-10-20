@@ -49,6 +49,7 @@ coverage:
 	$(VERILATOR) $(VFLAGS) $(VDEFS) --coverage --Mdir obj_dir_cov -o vlt_cov sim_main.cpp $(RTL_SRCS)
 	cd obj_dir_cov && mkdir -p logs && ./vlt_cov +scen | tee ../logs/vlt_cov.log
 	@grep -q "VLT PASS" logs/vlt_cov.log
+	@cp -f obj_dir_cov/logs/results.json logs/results.json   # CI's coverage job is the vlt-scen producer: crosscheck + results-vlt upload read dv/vlt/logs/results.json
 	$(VERILATOR) $(VFLAGS) $(VDEFS) --coverage --Mdir obj_dir_covb -o vlt_covb cov_main.cpp $(RTL_SRCS)
 	cd obj_dir_covb && ./vlt_covb | tee ../logs/vlt_covb.log
 	@grep -q "VLT COV PASS" logs/vlt_covb.log
