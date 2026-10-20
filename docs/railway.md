@@ -23,6 +23,24 @@ make railway-import     # git fetch origin metrics-data; collect --import-dir; r
   `regress,coverage,systemc,cocotb,uvm,formal`).
 - `PUBLISH_METRICS=1` — enable the publish step.
 
-**Status:** the Railway job is **defined**, not yet deployed (no remote this pass —
-see `AGENT_HANDOFF.md`). The weekly cron is for long runs that exceed the GitHub
-runner budget (e.g. random regression).
+**Status:** the Railway job is **defined**, not yet deployed. The weekly cron is for
+long runs that exceed the GitHub runner budget (e.g. random regression).
+
+## Verifying the path locally (no Railway, no GitHub)
+The whole publish → import round-trip runs against a throwaway bare repo, so the batch
+job is proven push-button before any deploy:
+
+```
+bare=$(mktemp -d)/m.git; git init -q --bare "$bare"; git push -q "$bare" HEAD:main
+# run the container's work and publish exactly as Railway would (full ci chain):
+METRICS_FLOWS=regress PUBLISH_METRICS=1 GITHUB_TOKEN=unused \
+  METRICS_GIT_URL="$bare" ./docker/entrypoint.sh ci
+# pull the published runs back into the local dashboard:
+make railway-import METRICS_REMOTE="$bare"
+```
+
+`METRICS_GIT_URL` overrides the GitHub URL in `publish_metrics.sh` (default unchanged, so
+real deploys are unaffected); `METRICS_REMOTE` (default `origin`) is the remote
+`railway-import` fetches `metrics-data` from. The github-scoped auth header is ignored off
+github.com, so the local remote needs no token. Imported runs are deduped by
+`ts_utc`+`git_sha`, so re-importing is a no-op.
