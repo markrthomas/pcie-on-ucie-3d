@@ -78,7 +78,7 @@ package pcie_ucie3d_pkg;
   localparam int unsigned CSR_ADDR_W = 8;
   localparam logic [7:0] CSR_CTRL     = 8'h00;  // RW  [1:0] pwr_req [4:2] speed_req [6:5] width_req
   localparam logic [7:0] CSR_SPEEDCFG = 8'h04;  // RW  [5:0] Tx preset index; a write is sent over the sideband
-  localparam logic [7:0] CSR_STATUS   = 8'h08;  // RO  [1:0] pwr [4:2] speed [6:5] width [10:7] state [11] active
+  localparam logic [7:0] CSR_STATUS   = 8'h08;  // RO  [1:0] pwr [4:2] speed [6:5] width [10:7] state [11] busy [12] active [13] rx_active [14] rx_elec_idle
   localparam logic [7:0] CSR_ERR      = 8'h0C;  // W1C [0] sb timeout [1] link timeout [2] L0s requested [3] reserved write ignored
   localparam logic [7:0] CSR_RXCNT0   = 8'h10;  // RO  [15:0] dropped flits [31:16] lock errors
   localparam logic [7:0] CSR_RXCNT1   = 8'h14;  // RO  [15:0] bad/orphan flits [31:16] aborted frames

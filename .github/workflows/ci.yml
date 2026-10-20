@@ -62,8 +62,10 @@ jobs:
         run: make upf-tb
       - name: GTKWave sessions vs fresh dumps (static check; no GUI in CI)
         run: make wave-check-all
+      # results-* feed the crosscheck job's --require list, so a missing file is a
+      # failure here (fail loud at the producer, not silently later in crosscheck).
       - uses: actions/upload-artifact@v4
-        with: { name: results-iverilog, path: dv/iverilog/sim_build/results.json, if-no-files-found: ignore }
+        with: { name: results-iverilog, path: dv/iverilog/sim_build/results.json, if-no-files-found: error }
 
   coverage:
     needs: [build-image, regress]
@@ -75,11 +77,14 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      # NOTE: `make coverage` also runs the vlt scenario pass, so this job is the
+      # producer of results-vlt for crosscheck (dv/vlt/Makefile copies it into
+      # dv/vlt/logs/).  Keep that in mind if the coverage flow is ever restructured.
       - run: make coverage
       - uses: actions/upload-artifact@v4
         with: { name: coverage, path: coverage.info, if-no-files-found: ignore }
       - uses: actions/upload-artifact@v4
-        with: { name: results-vlt, path: dv/vlt/logs/results.json, if-no-files-found: ignore }
+        with: { name: results-vlt, path: dv/vlt/logs/results.json, if-no-files-found: error }
 
   systemc:
     needs: [build-image, regress]
@@ -93,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: make -C dv/systemc scen
       - uses: actions/upload-artifact@v4
-        with: { name: results-systemc, path: dv/systemc/logs/results.json, if-no-files-found: ignore }
+        with: { name: results-systemc, path: dv/systemc/logs/results.json, if-no-files-found: error }
 
   uvm:
     needs: [build-image, regress]
@@ -107,7 +112,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: make -C dv/uvm scen
       - uses: actions/upload-artifact@v4
-        with: { name: results-uvm, path: dv/uvm/logs/results.json, if-no-files-found: ignore }
+        with: { name: results-uvm, path: dv/uvm/logs/results.json, if-no-files-found: error }
 
   cocotb:
     needs: [build-image, regress]
@@ -125,7 +130,7 @@ jobs:
       - name: PD_DP power-state emulation, reset DISABLED (retention matrix + negative control)
         run: make pd-emu-ret
       - uses: actions/upload-artifact@v4
-        with: { name: results-cocotb, path: dv/cocotb/results.json, if-no-files-found: ignore }
+        with: { name: results-cocotb, path: dv/cocotb/results.json, if-no-files-found: error }
 
   formal:
     needs: [build-image, regress]

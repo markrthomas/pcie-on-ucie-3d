@@ -80,8 +80,8 @@ def main() -> int:
                 want = str(rexp[fld])
             bad += not ok
             print(f"{'rand':<12} {fld:<7} {want:>10} {str(v) + ('' if ok else '*'):>10}")
-        if ctl > 0:                                # the harness' control plan must equal the golden plan
-            v = r.get("plan", "-")
+        if ctl > 0 and "plan" in rexp:             # the harness' control plan must equal the golden plan
+            v = r.get("plan", "-")                 # (only when expected_rand() supplies one — B3, pending)
             ok = str(v) == rexp["plan"]
             bad += not ok
             print(f"{'rand':<12} {'plan':<7} {rexp['plan']:>10} {str(v) + ('' if ok else '*'):>10}")
