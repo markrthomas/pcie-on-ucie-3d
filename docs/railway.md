@@ -24,7 +24,9 @@ make railway-import     # git fetch origin metrics-data; collect --import-dir; r
 - `PUBLISH_METRICS=1` — enable the publish step.
 
 **Status:** the Railway job is **defined**, not yet deployed. The weekly cron is for
-long runs that exceed the GitHub runner budget (e.g. random regression).
+long runs that exceed the GitHub runner budget (e.g. random regression). To run the
+identical batch without a Railway account, see `docs/codespaces.md` (same toolchain,
+same `metrics-data` output, in a GitHub Codespace).
 
 ## Verifying the path locally (no Railway, no GitHub)
 The whole publish → import round-trip runs against a throwaway bare repo, so the batch

@@ -1,0 +1,45 @@
+// GitHub Codespaces / VS Code Dev Container for pcie-on-ucie-3d.
+//
+// Reuses the repo's OWN Dockerfile `tools` stage — the same from-source toolchain
+// image (Verilator 5.050 + Yosys(slang) + SBY + yices + Icarus-12 + SystemC + z3,
+// and the cocotb/pyuvm/pyvsc venv) that CI runs every DV job in and that Railway
+// builds on.  So a Codespace is a faithful stand-in for the Railway batch container
+// with NO Railway account: open the Codespace and the same work runs there.
+//
+// The repo is mounted (not baked in), so edits are live — unlike the Dockerfile
+// `full` stage (COPY . /repo + ENTRYPOINT) which is for the unattended batch.
+//
+// Run the batch exactly as Railway's cron would (docs/railway.md, docs/codespaces.md):
+//     ./docker/entrypoint.sh ci                 # flows -> metrics.db -> dashboard.html
+//     PUBLISH_METRICS=1 ./docker/entrypoint.sh ci   # also push to the metrics-data branch
+// Then, locally:  make railway-import   (pulls the runs back into your dashboard)
+//
+// Faster cold start (optional): instead of building, point at the image CI already
+// pushed to GHCR and skip the from-source compile —
+//     "image": "ghcr.io/markrthomas/pcie-on-ucie-3d/dv-tools:tools-<hash>"
+// where <hash> = sha256(Dockerfile + dv/cocotb/requirements.txt)[:12]
+// (currently tools-eada5f430a15; recompute when the toolchain changes).  Enabling
+// Codespaces prebuilds on this repo caches the build instead.
+{
+  "name": "pcie-on-ucie-3d dv-tools",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "..",
+    "target": "tools"
+  },
+  "workspaceFolder": "/workspaces/pcie-on-ucie-3d",
+  // Prove the toolchain is present on create — fast; does NOT run the ~50-min suite.
+  "postCreateCommand": "verilator --version && iverilog -V | head -1 && python3 -c 'import cocotb; print(\"cocotb\", cocotb.__version__)' && echo 'dv-tools ready. Run the Railway-equivalent batch with:  PUBLISH_METRICS=1 ./docker/entrypoint.sh ci'",
+  // Same knobs as the Railway service (docs/railway.md).  Codespaces injects a
+  // GITHUB_TOKEN automatically, so PUBLISH_METRICS=1 can push to metrics-data when
+  // the Codespace has write access to the repo.
+  "remoteEnv": {
+    "METRICS_FLOWS": "regress,coverage,systemc,cocotb,uvm,formal"
+  },
+  // uvm/coverage Verilator builds are memory-hungry; entrypoint.sh derives JOBS from
+  // the cgroup limit (~3 GB/job).  A 4-core/16 GB machine is a sensible floor.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  }
+}
