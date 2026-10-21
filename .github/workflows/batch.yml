@@ -1,0 +1,81 @@
+name: batch
+
+# Manual trigger for the Railway-equivalent batch (docker/entrypoint.sh ci): runs
+# METRICS_FLOWS inside the from-source `tools` image, renders the dashboard, and
+# (publish=true) pushes metrics/{metrics.db,dashboard.html} to the orphan
+# `metrics-data` branch via docker/publish_metrics.sh.  Pull the runs back locally
+# with `make railway-import`.  This is the same workload Railway's weekly cron runs
+# and an alternative to a Codespace when SSH exec isn't available (docs/railway.md,
+# docs/codespaces.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      flows:
+        description: METRICS_FLOWS (comma-separated root make targets)
+        default: regress,coverage,systemc,cocotb,uvm,formal
+      publish:
+        description: push results to the metrics-data branch
+        type: boolean
+        default: true
+
+permissions:
+  contents: write    # publish_metrics.sh pushes the metrics-data branch
+  packages: write    # build-image pushes/pulls the tools image on GHCR
+
+jobs:
+  # Same content-addressed image as ci.yml: reuse it if already on GHCR, else build.
+  build-image:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute content-addressed image tag
+        id: tag
+        run: |
+          hash=$(cat Dockerfile dv/cocotb/requirements.txt | sha256sum | cut -c1-12)
+          repo=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${repo}/dv-tools:tools-${hash}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push toolchain image (if not cached)
+        run: |
+          if docker manifest inspect "${{ steps.tag.outputs.image }}" >/dev/null 2>&1; then
+            echo "image already present; reusing"
+          else
+            docker build --target tools -t "${{ steps.tag.outputs.image }}" .
+            docker push "${{ steps.tag.outputs.image }}"
+          fi
+
+  batch:
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Railway-equivalent batch (docker/entrypoint.sh ci)
+        env:
+          METRICS_FLOWS: ${{ inputs.flows }}
+          PUBLISH_METRICS: ${{ inputs.publish && '1' || '' }}
+          METRICS_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global --add safe.directory "$PWD" || true  # container uid != checkout owner
+          ./docker/entrypoint.sh ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-metrics
+          path: |
+            metrics/metrics.db
+            metrics/dashboard.html
+          if-no-files-found: error
