@@ -52,6 +52,7 @@ help:
 	@echo "  pd-emu-ret power-state emulation, -DDP_RESET_DISABLE (retention matrix + negative control)"
 	@echo "  metrics|dashboard   collect run data -> metrics.db -> dashboard.html"
 	@echo "  railway-import      merge the metrics-data branch's Railway runs, re-render the dashboard"
+	@echo "  waves      per-test VCD dump + GTKWave session check (wave-check-all = CI, no GUI)"
 	@echo "  stress     multi-seed Verilator run of all scenarios"
 	@echo "  clean      remove build artifacts"
 	@echo "  note: uvm needs a UVM-capable Verilator (>= 5.03x, e.g. the from-source Verilator in the CI image)"
