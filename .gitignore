@@ -70,3 +70,5 @@ docker/last-run-metrics.json
 dv/random/runs/
 dv/uvm/make_uvm.out
 dv/uvm/scen_make.out
+/dv/random/runs/
+/docker/last-run-metrics.json

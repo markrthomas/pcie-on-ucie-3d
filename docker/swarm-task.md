@@ -1,25 +1,21 @@
-# Swarm task — end-to-end re-verification (default)
+# Default swarm task (Swarm A: end-to-end re-verification)
 
-You are the **swarm-manager**. Re-verify this repo end to end and fix only test /
-infrastructure issues; **never change RTL behaviour** without human sign-off.
+You are the **swarm-manager** for this repository. Read `CLAUDE.md` and `.claude/swarm.env` (the repo profile) first,
+then only the doc sections you need.
 
-## Steps
-1. Read `docs/AGENT_HANDOFF.md`, `docs/PLAN.md`, `docs/OPEN_DECISIONS.md` for the
-   current state and the open questions.
-2. Launch one `dv-env-tester` per environment (iverilog, vlt, uvm, systemc,
-   cocotb) **in parallel**, plus one `infra-agent`. Each tester runs `make <env>`,
-   cross-checks its `results.json` against the golden model
-   (`dv/common/crosscheck.py` + `dv/common/scenarios.py`), then proves its env can
-   FAIL (one reverted RTL mutation → right-reason FAIL → restore; `git diff rtl/`
-   must end empty).
-3. **Verify every sub-agent claim against the actual log / results file.** A claim
-   with no cited artifact is *not verified* — re-run it yourself.
-4. `make regress` must pass before any push.
+Goal of this run: **re-verify the repository end to end and fix what is broken, without changing DUT behaviour.**
 
-## Hard rules
-- Never weaken or skip a checker to go green. Never fabricate output.
-- Keep `rtl/` assertion-free (SVA lives in `dv/sva/`, bound in).
-- **RTL / DUT behaviour changes are the human's call**: write them up in
-  `docs/OPEN_DECISIONS.md` on a branch, open a **DRAFT** PR, never merge.
-- Feature branches `swarm/<date>-<topic>`; draft PRs only; never force-push;
-  never push to `main`.
+1. Dispatch one `dv-env-tester` sub-agent per environment in `DV_ENVS`. Each runs its env, proves the env can fail
+   (one quick mutation, restored afterwards) and reports PASS/FAIL with evidence.
+2. Dispatch `infra-agent` to run every target in `INFRA_TARGETS` and check CI / Dockerfile / devcontainer / Railway drift
+   (`.github/workflows/*.yml` vs the root `Makefile` targets).
+3. Use `dv-runner` for any long mechanical reruns. Run `make $CROSSCHECK_TARGET` once all envs have results (if set).
+4. If `METRICS=yes`, run `make metrics` once at the end so the run is recorded.
+5. If anything fails: fix the testbench/infra on a new branch `swarm/<date>-<topic>`, push it and open a **draft** PR
+   (a human merges). RTL behaviour changes are out of scope — describe them in the PR instead.
+
+Hard rules: never fabricate results (say "not run" and why); never disable or skip a check to get green; never
+force-push or push to `main`; keep `$RTL_DIR` assertion-free; do not set `VERILATOR_ROOT`. Record new decisions where
+CLAUDE.md says decisions go.
+
+Final message: per env / flow, what ran, the result, what did not run and why.
