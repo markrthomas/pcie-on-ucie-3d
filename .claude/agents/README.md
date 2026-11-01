@@ -1,29 +1,29 @@
-# .claude/agents — the AI agent swarms
+# .claude/agents — swarm agent definitions (swarm-kit v1)
 
-Two swarms (run Claude Code non-bare via `docker/swarm.sh` so these load).
-Default task: `../docker/swarm-task.md` (Swarm A) or `../docker/rr-swarm-task.md`
-(Swarm B).
+These files are **identical in every RTL/DV repo** (canonical copy: `markrthomas/eth-dj-to-pcie-pipe-bridge`).
+Everything repo-specific — DV env list, gate target, RTL dir, mutation target, random-regression dir —
+lives in **`../swarm.env`**, which every agent reads first. Change an agent here, then copy it to the
+other repos; change a repo's behaviour in its `swarm.env` / `CLAUDE.md`, never by forking an agent.
 
-## Swarm A — end-to-end re-verification (`docker/swarm-task.md`)
+Discovered by Claude Code (non-bare) when `docker/swarm.sh` runs. Model choice = cheapest that does the job:
+coordination and mechanical work are cheap, only root-cause debugging gets the big model.
+
 | Agent | Model | Role |
 |---|---|---|
-| `swarm-manager` | opus | Orchestrates; dispatches testers + infra; verifies every claim against a real artifact; draft PRs only. |
-| `dv-env-tester` | sonnet | Owns one DV env; runs it, cross-checks the golden model, proves it can FAIL (reverted mutation). |
-| `infra-agent` | sonnet | formal / lp / waves / metrics / CI / Docker / Railway / Makefile; CI-vs-Makefile + tool-pin drift. |
-| `dv-runner` | haiku | Mechanical: run the exact targets, report command/exit/PASS-FAIL/log. |
+| `swarm-manager` | sonnet | Swarm A (verification): dispatches dv/infra agents, verifies claims, reports |
+| `dv-env-tester` | sonnet | runs one DV env (`DV_ENVS`), cross-check + one mutation |
+| `infra-agent` | sonnet | `INFRA_TARGETS`, CI/Docker/devcontainer/Railway drift |
+| `dv-runner` | haiku | runs a list of commands, reports raw results |
+| `rr-manager` | sonnet | Swarm B (random regression): loop, status board, merges worker branches |
+| `rr-runner` | haiku | builds + runs random batches (`make rr`) |
+| `rr-triage` | sonnet | clusters failures, DUT vs TB classification |
+| `rr-debugger` | opus | root-causes one cluster, fixes TB / writes up DUT |
+| `rr-test-author` | sonnet | pins repros in the corpus, grows stimulus; bootstraps the rr flow when `RR_STATUS=bootstrap` |
 
-## Swarm B — random-regression loop (`docker/rr-swarm-task.md`)
-| Agent | Model | Role |
-|---|---|---|
-| `rr-manager` | opus | Runs the loop: runner batches → triage clusters → one debugger per cluster → promote repros. |
-| `rr-runner` | haiku | Mechanical: `rr-build` + a seeded `rr` batch; report run dir + counts. |
-| `rr-triage` | sonnet | Read-only: cluster failures by signature, classify DUT/TB/harness/flaky. |
-| `rr-debugger` | opus | Root-cause one cluster; fix TB/harness/model; DUT changes → OPEN_DECISIONS, not merged. |
-| `rr-test-author` | sonnet | Promote repros into `dv/random/corpus.json`; grow stimulus; golden model is the contract. |
-
-## Doctrine (all agents)
-Verify every claim against a real artifact ("no artifact = not verified"); never
-weaken a checker or fabricate output; keep `rtl/` assertion-free; **RTL/DUT
-behaviour changes are the human's call** (write to `docs/OPEN_DECISIONS.md`, draft
-PR, human merges); branches `swarm/<date>-<topic>`, never force-push, never push
-to `main`.
+Default tasks: `../../docker/swarm-task.md` (Swarm A), `../../docker/rr-swarm-task.md` (Swarm B).
+All agents start from `../../CLAUDE.md` + `../swarm.env` and return "verdict + evidence + next step" (no log dumps).
+Sub-agents cannot spawn sub-agents in non-interactive runs, so `docker/swarm.sh` starts the top-level session AS the
+manager (`--agent swarm-manager`, or `rr-manager` for `rr-swarm-task.md`).
+`dv-env-tester`, `rr-debugger` and `rr-test-author` run in their own git worktrees (`isolation: worktree`).
+Shared skills: `../skills/` (`board-report`, `mutation-check`, `rr-bootstrap`). Headless Bash permissions: `../settings.json`.
+Repo-only extra agents (not part of the kit) may sit beside these; list them in the repo's `CLAUDE.md`.
