@@ -1,6 +1,6 @@
 {
  "worker": "rr-bootstrap",
- "state": "running",
+ "state": "done",
  "history": [
   {
    "t": "2026-11-03T19:54:21+00:00",
@@ -13,13 +13,19 @@
    "state": "running",
    "step": 3,
    "msg": "built; running rr"
+  },
+  {
+   "t": "2026-11-03T20:08:08+00:00",
+   "state": "done",
+   "step": 6,
+   "msg": "rr flow built; RR_STATUS flip blocked by permissions"
   }
  ],
  "task": "build rr flow",
  "steps": 6,
- "step": 3,
- "updated": "2026-11-03T19:56:26+00:00",
+ "step": 6,
+ "updated": "2026-11-03T20:08:08+00:00",
  "branch": "swarm/2026-11-03-rr-bootstrap",
- "sha": "4d8c890",
+ "sha": "4c88fbf",
  "blocker": ""
 }
