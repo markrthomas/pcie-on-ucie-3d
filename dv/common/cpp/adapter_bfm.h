@@ -97,6 +97,9 @@ class Harness {
 
   int mac_gap_pct = 10;
   int sink_ready_pct = 90;
+  bool rand_mode = false;           // run only the `rand` scenario (see scen_name_)
+  uint32_t rand_seed = 1;
+  int rand_frames = 24, rand_maxlen = 2000;
   bool done = false;
   int total_errors = 0;
   std::vector<ScenResult> results;
@@ -136,7 +139,11 @@ class Harness {
               i ? ", " : "", r.name.c_str(), r.frames, r.bytes, r.flits,
               r.crc ^ 0xFFFFFFFFu, r.pmcnt, r.errors);
     }
-    fprintf(f, "}}\n");
+    if (rand_mode)
+      fprintf(f, "}, \"rand\": {\"seed\": %u, \"frames\": %d, \"maxlen\": %d, \"ctl\": 0}}\n",
+              rand_seed, rand_frames, rand_maxlen);
+    else
+      fprintf(f, "}}\n");
     fclose(f);
   }
 
@@ -160,16 +167,24 @@ class Harness {
   long long cyc_ = 0;
 
   // ---- scenario table (mirror of dv/common/scenarios.py) --------------------
-  static const char* scen_name_(int s) {
+  // rand_mode (random regression, dv/random/rr.py): one scenario "rand" = `rand_frames`
+  // LCG-length frames, no control op; golden = scenarios.expected_rand().  Off by default,
+  // so the five fixed scenarios are unchanged.
+  const char* scen_name_(int s) const {
     static const char* n[] = {"single", "corners", "random", "pm_cycle", "speed_change"};
-    return n[s];
+    return rand_mode ? "rand" : n[s];
   }
-  static int scen_nframes_(int s) {
+  int scen_nframes_(int s) const {
     static const int n[] = {1, 11, 40, 16, 16};
-    return n[s];
+    return rand_mode ? rand_frames : n[s];
   }
-  static int scen_ctrl_(int s) { return s == 3 ? 1 : s == 4 ? 2 : 0; }
-  static int scen_len_(int s, int i) {
+  int scen_ctrl_(int s) const { return rand_mode ? 0 : s == 3 ? 1 : s == 4 ? 2 : 0; }
+  int scen_len_(int s, int i) const {
+    if (rand_mode) {
+      uint64_t x = uint64_t(rand_seed) & 0x7FFFFFFF;
+      for (int k = 0; k <= i; k++) x = (1103515245ull * x + 12345ull) & 0x7FFFFFFF;
+      return 1 + int((x >> 8) % uint64_t(rand_maxlen));
+    }
     static const int corners[] = {1, 31, 32, 33, 239, 240, 241, 480, 481, 1500, 4096};
     if (s == 0) return 256;
     if (s == 1) return corners[i];
@@ -369,7 +384,7 @@ class Harness {
         if ((uo.csr_rdata & (1u << 12)) != 0) {
           // new scenario
           sc_++;
-          if (sc_ >= 5) { finish_(); break; }
+          if (sc_ >= (rand_mode ? 1 : 5)) { finish_(); break; }
           ScenResult r; r.name = scen_name_(sc_); results.push_back(r);
           cur_scen_ = sc_; rx_frames_ = 0; fbuf_.clear();
           flits_at_scen_ = flits_;

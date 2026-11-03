@@ -1,0 +1,15 @@
+{
+  "entries": [
+    {
+      "seed": 100,
+      "config": "vlt",
+      "frames": 64,
+      "maxlen": 2000,
+      "gap": 0,
+      "ready": 50,
+      "note": "teeth canary: caught by last-beat tdata bit-flip mutation of rtl/pcie_egress.sv (frame payload); not a real RTL bug",
+      "fixed": true,
+      "signature": "frame payload"
+    }
+  ]
+}

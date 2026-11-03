@@ -54,6 +54,7 @@ help:
 	@echo "  railway-import      merge the metrics-data branch's Railway runs, re-render the dashboard"
 	@echo "  waves      per-test VCD dump + GTKWave session check (wave-check-all = CI, no GUI)"
 	@echo "  stress     multi-seed Verilator run of all scenarios"
+	@echo "  rr-build|rr|rr-triage|rr-replay  random regression (dv/random): build once; make rr N=30 JOBS=4 SEED=<base>; rr-triage RUN=<dir>; rr-replay = corpus gate (part of ci)"
 	@echo "  tools      verify toolchain + install missing (TOOLS_HEAVY=1 builds src Verilator); tools-check = verify only"
 	@echo "  clean      remove build artifacts"
 	@echo "  note: uvm needs a UVM-capable Verilator (>= 5.03x, e.g. the from-source Verilator in the CI image)"
@@ -208,7 +209,7 @@ rr-replay:
 	python3 dv/random/rr.py replay --jobs $(JOBS)
 
 # ---- full local CI mirror ---------------------------------------------------
-ci: regress coverage formal crosscheck
+ci: regress coverage formal crosscheck rr-replay
 	@echo "ci: OK"
 
 clean:

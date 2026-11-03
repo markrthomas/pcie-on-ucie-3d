@@ -109,9 +109,15 @@ negative control).
 runs *after* a completed gate — never fold it into `regress`/`ci`, and never make
 a DV env do extra work to produce a number.
 
+## Random regression
+`make rr-build` (Verilator, default + FLOW_CTRL), `make rr N=.. JOBS=.. SEED=..`, `make rr-triage RUN=<dir>`,
+`make rr-replay` (corpus gate, folded into `make ci`). Driver `dv/random/rr.py`; stimulus is the `+rand`
+scenario in `dv/vlt/sim_main.cpp`/`adapter_bfm.h`, checked by the BFM scoreboard + `scenarios.expected_rand()`.
+Knobs, contract and backlog: `dv/random/README.md`. Keep the five fixed scenarios bit-identical.
+
 ## Agent swarms (repo notes)
 The swarm itself is the shared kit described in the block below; this repo's profile is `.claude/swarm.env`
-(5 envs, `crosscheck`, metrics on; random regression is a scaffold, so `RR_STATUS=bootstrap`). Repo-specific doctrine: SVA lives in `dv/sva/`, bound
+(5 envs, `crosscheck`, metrics on; random regression present: `make rr*`, Verilator `+rand`, bootstrapped 2026-11-03). Repo-specific doctrine: SVA lives in `dv/sva/`, bound
 in; DUT behaviour changes go to `docs/OPEN_DECISIONS.md` ("Behaviour to review").
 
 <!-- swarm-kit:begin (managed by markrthomas/dv-swarm-kit sync.sh — edit the kit, not this block) -->
