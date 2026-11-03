@@ -111,7 +111,7 @@ a DV env do extra work to produce a number.
 
 ## Agent swarms (repo notes)
 The swarm itself is the shared kit described in the block below; this repo's profile is `.claude/swarm.env`
-(5 envs, `crosscheck`, metrics on, random regression present). Repo-specific doctrine: SVA lives in `dv/sva/`, bound
+(5 envs, `crosscheck`, metrics on; random regression is a scaffold, so `RR_STATUS=bootstrap`). Repo-specific doctrine: SVA lives in `dv/sva/`, bound
 in; DUT behaviour changes go to `docs/OPEN_DECISIONS.md` ("Behaviour to review").
 
 <!-- swarm-kit:begin (managed by markrthomas/dv-swarm-kit sync.sh — edit the kit, not this block) -->
