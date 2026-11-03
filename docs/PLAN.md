@@ -173,6 +173,8 @@ corruption/isolation/retention emulation). Documented in `docs/power_intent.md`.
   (`swarm-manager` + per-env `dv-env-tester` + `infra-agent` + `dv-runner`);
   B = random regression (`rr-manager` + `rr-runner`/`rr-triage`/`rr-debugger`/
   `rr-test-author`). Draft PRs only; RTL changes → `OPEN_DECISIONS.md`, human merges.
+  **Done 2026-11-03:** `make rr-build/rr/rr-triage/rr-replay` working on Verilator (`+rand` scenario,
+  golden `expected_rand`); see `dv/random/README.md` for knobs + backlog B1..B4.
 
 ---
 

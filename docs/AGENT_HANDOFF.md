@@ -33,6 +33,11 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
   [OK]; GitHub Actions all 8 jobs green on `main`; `dv_audit.sh` clean for this repo
   (the workspace-level FAIL is other early-scaffold siblings).
 
+## Random regression (2026-11-03)
+`dv/random/rr.py` is now a working flow (Verilator `+rand` scenario, golden = `expected_rand`);
+`RR_STATUS=present`. See `dv/random/README.md` (contract, knobs, backlog B1..B4). Only vlt runs `+rand`
+so far; `rr-replay` is in `make ci`.
+
 ## Current state (2026-10-19)
 - **M5 complete** (on branch `claude/m1-tx-datapath`). **M0 scaffold** on `main`;
   **M1 Tx / M2 Rx / M3 control plane / M4 five-env + fc + playground** committed on

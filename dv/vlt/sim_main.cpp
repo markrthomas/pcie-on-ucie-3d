@@ -61,8 +61,18 @@ static void sample(PcieOut& po, UcieOut& uo) {
     uo.sb_m2s = dut->ucie_sb_m2s; uo.csr_rdata = dut->csr_rdata;
 }
 
+// +rand knobs (random regression): +seed=N +frames=N +maxlen=N +gap=PCT +ready=PCT
+static bool rand_mode = false;
+static uint32_t k_seed = 1;
+static int k_frames = 24, k_maxlen = 2000, k_gap = -1, k_ready = -1;
+
 static int run_scen() {
-    Harness h;
+    Harness h(rand_mode ? k_seed * 2654435761u + 1 : 12345);
+    if (rand_mode) {
+        h.rand_mode = true; h.rand_seed = k_seed; h.rand_frames = k_frames; h.rand_maxlen = k_maxlen;
+    }
+    if (k_gap >= 0) h.mac_gap_pct = k_gap;
+    if (k_ready >= 0) h.sink_ready_pct = k_ready;
     PcieOut po; UcieOut uo;
     // clocks low, initial (reset) inputs applied, settle
     dut->pcie_clk = 0; dut->ucie_clk = 0;
@@ -80,7 +90,7 @@ static int run_scen() {
     }
     h.fc_summary();
     h.write_json("logs/results.json", "vlt");
-    bool ok = h.done && h.total_errors == 0 && h.results.size() == 5;
+    bool ok = h.done && h.total_errors == 0 && h.results.size() == (rand_mode ? 1u : 5u);
     printf("%s: %zu scenarios, %d error(s), %lld cycles\n", ok ? "VLT PASS" : "VLT FAIL",
            h.results.size(), h.total_errors, guard);
     return ok ? 0 : 1;
@@ -117,7 +127,16 @@ int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     dut = new Vpcie_ucie3d_adapter;
     bool scen = false;
-    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "+scen")) scen = true;
+    for (int i = 1; i < argc; i++) {
+        const char* a = argv[i];
+        if (!strcmp(a, "+scen")) scen = true;
+        else if (!strcmp(a, "+rand")) { scen = true; rand_mode = true; }
+        else if (!strncmp(a, "+seed=", 6)) k_seed = uint32_t(strtoul(a + 6, 0, 0));
+        else if (!strncmp(a, "+frames=", 8)) k_frames = atoi(a + 8);
+        else if (!strncmp(a, "+maxlen=", 8)) k_maxlen = atoi(a + 8);
+        else if (!strncmp(a, "+gap=", 5)) k_gap = atoi(a + 5);
+        else if (!strncmp(a, "+ready=", 7)) k_ready = atoi(a + 7);
+    }
     int rc = scen ? run_scen() : run_smoke();
     dut->final();
 #if VM_COVERAGE
