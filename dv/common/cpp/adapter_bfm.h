@@ -15,6 +15,7 @@
 #define ADAPTER_BFM_H
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <string>
@@ -88,6 +89,7 @@ struct ScenResult {
   int flits = 0;
   uint32_t crc = 0xFFFFFFFFu;
   uint32_t pmcnt = 0;
+  uint32_t rx0 = 0, rx1 = 0;        // rand mode: RXCNT0/1 read back at the end
   int errors = 0;
 };
 
@@ -100,6 +102,11 @@ class Harness {
   bool rand_mode = false;           // run only the `rand` scenario (see scen_name_)
   uint32_t rand_seed = 1;
   int rand_frames = 24, rand_maxlen = 2000;
+  // B1/B2 stimulus (rand mode only; all 0 = the original no-control, no-CSR, no-injection scenario)
+  int rand_ctl = 0, rand_nctl = 0;   // control ops: 0 none, 1 pm_cycle, 2 speed_change, 3 mix; count
+  int rand_mid = 0;                  // 1: ops fire while later frames are already queued/in flight
+  int rand_csr = 0, rand_ncfg = 0;   // CSR traffic activity %/cycle; exact # of SPEEDCFG writes
+  int rand_nrx = 0;                  // # of Rx-side error injections (at the quiescent end of the run)
   bool done = false;
   int total_errors = 0;
   std::vector<ScenResult> results;
@@ -123,6 +130,15 @@ class Harness {
     sink_(po);                             // PCIe sink + scoreboard
     sequencer_(uo);                        // scenario driver (uses CSR)
 
+    if (!inj_q_.empty()) {                 // B2: Rx-side error injection overrides the loopback
+      const InjBeat b = inj_q_.front(); inj_q_.pop_front();
+      uin_.rx_data = b.d; uin_.rx_valid = b.v; uin_.rx_start_flit = b.s;
+      inj_hold_ = true;
+    } else if (inj_hold_) {                // keep the loopback cut until a Tx flit (e.g. FC credit-only)
+      if (fbeat_ == 0 && !uo.tx_valid) inj_hold_ = false;       // that started meanwhile has ended, so
+      else { uin_.rx_valid = false; uin_.rx_start_flit = false; }   // Rx never sees a flit tail
+    }
+
     pin_.rst_n = rst_n_;
     uin_.rst_n = rst_n_;
   }
@@ -135,13 +151,15 @@ class Harness {
       const ScenResult& r = results[i];
       fprintf(f,
               "%s\"%s\": {\"frames\": %d, \"bytes\": %ld, \"flits\": %d, "
-              "\"crc32\": \"%08x\", \"pmcnt\": %u, \"errors\": %d}",
+              "\"crc32\": \"%08x\", \"pmcnt\": %u, \"errors\": %d%s",
               i ? ", " : "", r.name.c_str(), r.frames, r.bytes, r.flits,
-              r.crc ^ 0xFFFFFFFFu, r.pmcnt, r.errors);
+              r.crc ^ 0xFFFFFFFFu, r.pmcnt, r.errors, rand_mode ? "" : "}");
+      if (rand_mode) fprintf(f, ", \"rxcnt0\": %u, \"rxcnt1\": %u}", r.rx0, r.rx1);
     }
     if (rand_mode)
-      fprintf(f, "}, \"rand\": {\"seed\": %u, \"frames\": %d, \"maxlen\": %d, \"ctl\": 0}}\n",
-              rand_seed, rand_frames, rand_maxlen);
+      fprintf(f, "}, \"rand\": {\"seed\": %u, \"frames\": %d, \"maxlen\": %d, \"ctl\": %d, \"nctl\": %d, "
+                 "\"mid\": %d, \"csr\": %d, \"ncfg\": %d, \"nrx\": %d}}\n",
+              rand_seed, rand_frames, rand_maxlen, rand_ctl, rand_nctl, rand_mid, rand_csr, rand_ncfg, rand_nrx);
     else
       fprintf(f, "}}\n");
     fclose(f);
@@ -318,6 +336,15 @@ class Harness {
 
   // ---- PCIe sink + scoreboard ----------------------------------------------
   std::vector<uint8_t> fbuf_;
+  int abort_pending_ = 0, abort_seen_ = 0;      // injected aborts still expected / seen at the sink
+  std::deque<std::vector<uint8_t>> inj_exp_;    // injected good frames still expected at the sink
+  bool probe_ = false;               // debug prints (+probe), off in normal runs
+ public:
+  void set_probe(bool p) { probe_ = p; }
+ private:
+  struct InjBeat { uint64_t d; bool v, s; };
+  std::deque<InjBeat> inj_q_;
+  bool inj_hold_ = false;
   int rx_frames_ = 0;
   void sink_(const PcieOut& po) {
     if (!rst_n_) { fbuf_.clear(); rx_frames_ = 0; pin_.rx_tready = false; return; }
@@ -333,6 +360,15 @@ class Harness {
       if (po.rx_tlast) {
         bool aborted = po.rx_tuser & 1;
         int id = rx_frames_;
+        if (aborted && abort_pending_ > 0) {           // injected abort (B2): expected, not a data frame
+          abort_pending_--; abort_seen_++;
+          if (probe_) printf("[cyc %lld] PROBE sink abort frame bytes=%zu\n", cyc_, fbuf_.size());
+          fbuf_.clear(); pin_.rx_tready = rng_.pct(sink_ready_pct); return;
+        }
+        if (!aborted && !inj_exp_.empty()) {           // injected good frame (B2): compare, not a data frame
+          if (fbuf_ != inj_exp_.front()) err_("injected frame payload");
+          inj_exp_.pop_front(); fbuf_.clear(); pin_.rx_tready = rng_.pct(sink_ready_pct); return;
+        }
         if (aborted) err_("frame aborted");
         else if (id >= scen_nframes_(cur_scen_) || int(fbuf_.size()) != scen_len_(cur_scen_, id))
           err_("frame length");
@@ -351,7 +387,8 @@ class Harness {
   }
 
   // ---- scenario sequencer ---------------------------------------------------
-  enum Phase { P_RESET, P_WAIT_UP, P_SEND1, P_CTRL, P_SEND2, P_DRAIN, P_RECORD, P_NEXT, P_DONE };
+  enum Phase { P_RESET, P_WAIT_UP, P_SEND1, P_CTRL, P_SEND2, P_DRAIN, P_RECORD, P_NEXT, P_DONE,
+               P_RWAIT, P_INJ };
   int sc_ = -1;                     // active scenario index into results
   Phase phase_ = P_RESET;
   int rst_hold_ = 0, settle_cnt_ = 0, drain_cnt_ = 0;
@@ -388,6 +425,7 @@ class Harness {
           ScenResult r; r.name = scen_name_(sc_); results.push_back(r);
           cur_scen_ = sc_; rx_frames_ = 0; fbuf_.clear();
           flits_at_scen_ = flits_;
+          if (rand_mode) { rnd_begin_(); phase_ = P_RWAIT; break; }
           // enqueue first half (or all, for ctrl==0)
           int nfr = scen_nframes_(sc_);
           send_lo_ = 0; send_hi_ = (scen_ctrl_(sc_) == 0) ? nfr : nfr / 2;
@@ -417,10 +455,13 @@ class Harness {
           if (++drain_cnt_ >= 400) { drain_cnt_ = 0; phase_ = P_RECORD; rd_addr_ = CSR_PMCNT; rd_wait_ = 0; uin_.csr_addr = CSR_PMCNT; }
         } else drain_cnt_ = 0;
         break;
+      case P_RWAIT: rnd_wait_(uo); break;
+      case P_INJ: rnd_inj_(uo); break;
       case P_RECORD:
         uin_.csr_addr = CSR_PMCNT;
         if (++rd_wait_ >= 2) {
           results[sc_].pmcnt = uo.csr_rdata & 0xFFFF;
+          if (rand_mode && results[sc_].pmcnt != uint32_t(pm_model_)) err_("PMCNT != model at end of run");
           results[sc_].frames = rx_frames_;
           results[sc_].flits = flits_ - flits_at_scen_;
           printf("SCEN %-12s frames=%d bytes=%ld flits=%d crc32=%08x pmcnt=%u errors=%d\n",
@@ -460,7 +501,7 @@ class Harness {
     switch (ctrl_step_) {
       case 0:
         if (ctrl_phase_ == 0) {
-          if (scen_ctrl_(sc_) == 1) ctrl_issue_(PWR_L1, SPEED_64, 0);
+          if ((rand_mode ? cur_op_ : scen_ctrl_(sc_)) == 1) ctrl_issue_(PWR_L1, SPEED_64, 0);
           else ctrl_issue_(PWR_L0, SPEED_32, 0);
         } else if (ctrl_phase_ == 1) {
           csr_wr_tick_(); ctrl_phase_ = 2; uin_.csr_addr = CSR_STATUS;
@@ -479,11 +520,243 @@ class Harness {
           csr_wr_tick_(); ctrl_phase_ = 2; uin_.csr_addr = CSR_STATUS;
         } else {
           uin_.csr_addr = CSR_STATUS;
-          if (ctrl_settled_(uo)) { ctrl_phase_ = 0; phase_ = P_SEND2; }
+          if (ctrl_settled_(uo)) {
+            ctrl_phase_ = 0;
+            if (rand_mode) rnd_ctrl_done_(); else phase_ = P_SEND2;
+          }
         }
         break;
     }
   }
+
+  // ===========================================================================
+  // Random-regression stimulus (rand_mode only; mirrored by scenarios.expected_rand()).
+  //   B1: `rand_nctl` control ops (pm_cycle: +2 pmcnt, speed_change: +4) at frame boundaries
+  //       b_i = nfr*(i+1)/(nctl+1).  Drained mode: segment sent, drained, op, next segment.
+  //       Mid mode (rand_mid): all frames queued up front, the op fires as soon as b_i frames
+  //       were received, i.e. with later frames in flight (the DUT gates/holds them).
+  //   B2: CSR traffic while the link is up (reads of every register + unmapped addresses, W1C ERR
+  //       writes, reserved-width CTRL writes, writes to RO/unmapped addresses, `rand_ncfg`
+  //       SPEEDCFG writes), each read checked against a register model; Rx-side error injection
+  //       at the quiescent end of the run (`rand_nrx` injections), RXCNT0/1 + sink checked.
+  // ===========================================================================
+ public:
+  static int rnd_op_(uint32_t seed, int ctl, int i) {   // 1 pm_cycle, 2 speed_change (== scenarios.rand_ops)
+    return ctl == 3 ? (((seed >> (i % 31)) & 1) ? 2 : 1) : ctl;
+  }
+  static int rnd_inj_type_(uint32_t seed, int i) { return int((seed + 7u * unsigned(i)) % 5u); }
+ private:
+  std::vector<int> r_ops_, r_b_;
+  int r_i_ = 0, r_enq_ = 0, cur_op_ = 0;
+  int pm_model_ = 0, err_model_ = 0, spd_model_ = 0x21, cfg_done_ = 0, csr_block_ = 0;
+  int sb_chk_ = 0, sb_chk_n_ = 0, sb_wait_ = 0;   // SPEEDCFG sideband check: 0 idle, 1 op pending, 2 done
+  int rd_pend_ = -1, inj_i_ = 0, inj_st_ = 0, inj_wait_ = 0;
+  uint32_t rx_exp_[4] = {0, 0, 0, 0};   // lock_errors, dropped_flits, aborted_frames, bad_flits
+
+  bool csr_idle_() const { return rd_pend_ < 0 && csr_stage_ == 0; }
+  bool tx_quiet_(const UcieOut& uo) const { return fbeat_ == 0 && !uo.tx_valid; }
+
+  void rnd_begin_() {
+    r_ops_.clear(); r_b_.clear();
+    int nops = rand_ctl ? rand_nctl : 0;
+    for (int i = 0; i < nops; i++) {
+      r_ops_.push_back(rnd_op_(rand_seed, rand_ctl, i));
+      r_b_.push_back(rand_frames * (i + 1) / (nops + 1));
+    }
+    r_i_ = 0; r_enq_ = 0;
+    int upto = (nops > 0 && !rand_mid) ? r_b_[0] : rand_frames;
+    for (; r_enq_ < upto; r_enq_++) send_frame_(r_enq_);
+    wait_target_ = rand_frames;
+    pm_model_ = LINKUP_OPS_; csr_block_ = 300; spd_model_ = 0x21; err_model_ = 0; cfg_done_ = 0;
+    rd_pend_ = -1; inj_i_ = 0; inj_st_ = 0; sb_chk_ = 0; drain_cnt_ = 0;
+    for (int i = 0; i < 4; i++) rx_exp_[i] = 0;
+    abort_pending_ = abort_seen_ = 0; inj_exp_.clear(); inj_q_.clear();
+  }
+  static constexpr int LINKUP_OPS_ = 2;
+
+  void rnd_ctrl_done_() {
+    pm_model_ += (cur_op_ == 1) ? 2 : 4;
+    csr_block_ = 40;
+    r_i_++;
+    if (!rand_mid) {
+      int upto = (r_i_ < int(r_ops_.size())) ? r_b_[r_i_] : rand_frames;
+      for (; r_enq_ < upto; r_enq_++) send_frame_(r_enq_);
+    }
+    phase_ = P_RWAIT;
+  }
+
+  void rnd_check_read_(int addr, uint32_t d) {
+    char m[96];
+    uint32_t exp = 0; bool chk = true;
+    switch (addr) {
+      case CSR_CTRL: exp = (SPEED_64 << 2); break;     // L0 / 64 GT/s / x1: every op returns here
+      case CSR_SPEEDCFG: exp = uint32_t(spd_model_); break;
+      case CSR_STATUS:   // settled link: L0, 64 GT/s, x1, state ACTIVE(4), active, !busy, rx_active, !elec_idle
+        // An op (or a cfg send) ends in ST_DRAIN(5), which only returns to ACTIVE once the datapath is
+        // idle (FC credit flits / traffic can hold it there): both are legal; every other field is fixed.
+        exp = (1u << 13) | (1u << 12) | (4u << 7) | (SPEED_64 << 2);
+        if (d == ((1u << 13) | (1u << 11) | (5u << 7) | (SPEED_64 << 2))) exp = d;   // ST_DRAIN: busy, !active
+        chk = csr_block_ == 0; break;
+      case CSR_ERR: exp = uint32_t(err_model_); break;
+      case CSR_RXCNT0: exp = (rx_exp_[0] << 16) | rx_exp_[1]; break;
+      case CSR_RXCNT1: exp = (rx_exp_[2] << 16) | rx_exp_[3]; break;
+      case CSR_PMCNT:
+        exp = uint32_t(pm_model_); chk = csr_block_ == 0;
+        if (sb_chk_ == 1) {                    // SPEEDCFG in flight: PMCNT is pm_model_-1 until it completes
+          chk = false;
+          if (d == uint32_t(pm_model_)) { sb_chk_ = 2; csr_block_ = 20; }
+          else if (d != uint32_t(pm_model_ - 1)) err_("PMCNT while SPEEDCFG pending is neither old nor new value");
+        }
+        break;
+      default: exp = 0; break;                            // unmapped reads 0
+    }
+    if (chk && d != exp) {
+      snprintf(m, sizeof m, "CSR read 0x%02x = 0x%x, model 0x%x", addr, d, exp);
+      err_(m);
+    }
+  }
+
+  void rnd_csr_op_(bool force_cfg) {
+    int r = int(rng_.next() % 100);
+    static const int regs[] = {CSR_CTRL, CSR_SPEEDCFG, CSR_STATUS, CSR_ERR, CSR_RXCNT0, CSR_RXCNT1, CSR_PMCNT};
+    auto unmapped = [&]() {
+      for (;;) {
+        int a = int(rng_.next() & 0xFF);
+        bool mapped = false;
+        for (int x : regs) mapped |= (x == a);
+        if (!mapped) return a;
+      }
+    };
+    if (force_cfg || (r >= 85 && cfg_done_ < rand_ncfg && csr_block_ == 0)) {
+      if (csr_block_ != 0 || cfg_done_ >= rand_ncfg) return;
+      uint32_t v = rng_.next() & 0xFF;
+      csr_wr_begin_(CSR_SPEEDCFG, v);
+      if (probe_) printf("[cyc %lld] PROBE cfg write %u\n", cyc_, v);
+      spd_model_ = int(v & 0x3F); pm_model_++; cfg_done_++; csr_block_ = 1 << 30;
+      sb_chk_ = 1; sb_chk_n_ = sb_writes; sb_wait_ = 0;
+    } else if (r < 50 || r >= 85) {
+      int a = (rng_.next() % 10 < 7) ? regs[rng_.next() % 7] : ((rng_.next() & 1) ? unmapped() : int(rng_.next() & 0xFF));
+      uin_.csr_addr = a; rd_pend_ = a;
+    } else if (r < 65) {
+      uint32_t mask = rng_.next() & 0xF;
+      csr_wr_begin_(CSR_ERR, mask);
+      err_model_ &= ~int(mask);
+    } else if (r < 75) {
+      csr_wr_begin_(CSR_CTRL, (3u << 5) | ((rng_.next() & 7) << 2) | (rng_.next() & 3));   // reserved width: ignored
+      err_model_ |= 8;
+    } else {
+      static const int ro[] = {CSR_STATUS, CSR_RXCNT0, CSR_RXCNT1, CSR_PMCNT};
+      int a = (rng_.next() & 1) ? ro[rng_.next() % 4] : unmapped();
+      csr_wr_begin_(a, rng_.next());                  // writes to RO / unmapped: no effect
+    }
+  }
+
+  // one cycle of CSR-engine housekeeping + (optionally) a new random op
+  void rnd_csr_cycle_(const UcieOut& uo, bool allow_new, bool force_cfg) {
+    if (rd_pend_ >= 0) { rnd_check_read_(rd_pend_, uo.csr_rdata); rd_pend_ = -1; uin_.csr_addr = CSR_STATUS; return; }
+    if (csr_stage_ == 1) { csr_wr_tick_(); uin_.csr_addr = CSR_STATUS; return; }
+    // A SPEEDCFG write is only executed once the datapath has drained (long frames in flight can
+    // take thousands of cycles): poll PMCNT until it shows the model value, then check the sideband.
+    if (sb_chk_ == 1) {
+      if (++sb_wait_ > 200000) { err_("SPEEDCFG operation never completed (PMCNT)"); sb_chk_ = 0; csr_block_ = 0; return; }
+      if (rng_.pct(25)) { uin_.csr_addr = CSR_PMCNT; rd_pend_ = CSR_PMCNT; return; }
+    }
+    if (csr_block_ > 0 && sb_chk_ != 1) { csr_block_--; if (csr_block_ == 0 && sb_chk_ == 2) {
+        sb_chk_ = 0;
+        if (probe_) printf("[cyc %lld] PROBE sb_writes=%d at_write=%d\n", cyc_, sb_writes, sb_chk_n_);
+        if (sb_writes != sb_chk_n_ + 1) err_("SPEEDCFG write did not produce exactly one sideband write");
+        else if (last_sb_addr != SB_ADDR_TX_PRESET || last_sb_data != spd_model_) err_("SPEEDCFG sideband write addr/data");
+    } }
+    if (allow_new && (force_cfg || rng_.pct(rand_csr))) rnd_csr_op_(force_cfg);
+  }
+
+  void rnd_wait_(const UcieOut& uo) {
+    int nops = int(r_ops_.size());
+    if (probe_ && (cyc_ % 20000) == 0)
+      printf("PROBE cyc=%lld rxf=%d macidle=%d txq=%d blk=%d stage=%d pend=%d tready=%d\n", cyc_, rx_frames_,
+             mac_idle_(), tx_quiet_(uo), csr_block_, csr_stage_, rd_pend_, 0);
+    bool all_in = rx_frames_ >= rand_frames && mac_idle_() && tx_quiet_(uo);
+    bool force = r_i_ >= nops && all_in && cfg_done_ < rand_ncfg;
+    // random CSR traffic runs while data/ctrl is in progress; at the quiescent end only the forced
+    // SPEEDCFG writes (to reach exactly rand_ncfg) are issued, so the end-of-run drain can complete
+    rnd_csr_cycle_(uo, (rand_csr > 0 && !(r_i_ >= nops && all_in)) || force, force);
+    bool qd = csr_idle_() && csr_block_ == 0;
+    if (r_i_ < nops) {
+      if (rx_frames_ >= r_b_[r_i_] && qd && (rand_mid || (mac_idle_() && tx_quiet_(uo)))) {
+        cur_op_ = r_ops_[r_i_]; phase_ = P_CTRL; ctrl_step_ = 0; ctrl_phase_ = 0;
+      }
+    } else if (all_in && qd && cfg_done_ >= rand_ncfg) {
+      if (++drain_cnt_ >= 300) { drain_cnt_ = 0; phase_ = P_INJ; inj_st_ = 0; }
+    } else drain_cnt_ = 0;
+  }
+
+  // ---- Rx-side error injection ------------------------------------------------
+  void inj_flit_(bool hv, bool sof, bool eof, int plen, int base, bool corrupt_mid_start) {
+    uint8_t fl[FLIT_BYTES] = {};
+    fl[0] = uint8_t((hv ? 1 : 0) | (sof ? 2 : 0) | (eof ? 4 : 0));
+    fl[1] = uint8_t(plen);
+    for (int i = 0; i < plen; i++) fl[FLIT_HDR_B + i] = uint8_t(base + i);
+    for (int beat = 0; beat < FLIT_BEATS; beat++) {
+      uint64_t w = 0;
+      for (int b = 0; b < 8; b++) w |= uint64_t(fl[beat * 8 + b]) << (8 * b);
+      bool st = (beat == 0) || (corrupt_mid_start && beat == 5);
+      inj_q_.push_back({w, true, st});
+      if (corrupt_mid_start && beat == 5) break;
+    }
+  }
+  void inj_idle_(int n) { for (int i = 0; i < n; i++) inj_q_.push_back({0, false, false}); }
+  // measured deltas {lock, dropped, aborted, bad} per injection type (see dv/random/README.md B2)
+  static const int* inj_delta_(int t) {
+    static const int d[5][4] = {{1, 0, 0, 0}, {2, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}};
+    return d[t];
+  }
+  void inj_build_(int t) {
+    switch (t) {
+      case 0: inj_q_.push_back({0xDEAD, true, false}); inj_idle_(4); break;          // stray data beat
+      case 1: inj_flit_(true, true, false, 240, 0x10, true); inj_idle_(4); break;    // start_flit mid-flit
+      case 2:                                                                         // valid dropped mid-flit
+        for (int b = 0; b < 6; b++) inj_q_.push_back({b == 0 ? 7u : 0u, true, b == 0});
+        inj_idle_(4); break;
+      case 3: inj_flit_(true, false, true, 32, 0x20, false); inj_idle_(4); break;    // orphan (no sof)
+      case 4:                                                                         // sof mid-frame: abort
+        inj_flit_(true, true, false, 240, 0x30, false); inj_idle_(10);
+        inj_flit_(true, true, true, 240, 0x40, false); inj_idle_(4);
+        abort_pending_++;
+        { std::vector<uint8_t> v; for (int i = 0; i < 240; i++) v.push_back(uint8_t(0x40 + i)); inj_exp_.push_back(v); }
+        break;
+    }
+    const int* d = inj_delta_(t);
+    for (int i = 0; i < 4; i++) rx_exp_[i] += uint32_t(d[i]);
+  }
+
+  // P_INJ: for each injection: build, wait for drain + 150 idle cycles, read RXCNT0/1 and compare to
+  // the model; after the last one: final RXCNT0/1 + ERR read-back (also runs when nrx == 0: a clean run
+  // must show all-zero Rx error counters), recorded in the result for the golden model.
+  void rnd_inj_(const UcieOut& uo) {
+    switch (inj_st_) {
+      case 0:
+        if (inj_i_ < rand_nrx && !tx_quiet_(uo)) break;      // never start in the middle of a Tx flit
+        if (inj_i_ < rand_nrx) { inj_build_(rnd_inj_type_(rand_seed, inj_i_)); inj_wait_ = 0; inj_st_ = 1; }
+        else inj_st_ = 4;
+        break;
+      case 1:
+        if (inj_q_.empty() && ++inj_wait_ >= 150) {
+          if (abort_pending_ != 0 || !inj_exp_.empty()) err_("injected abort/frame not observed at the sink");
+          uin_.csr_addr = CSR_RXCNT0; inj_st_ = 2;
+        }
+        break;
+      case 2: inj_chk_(CSR_RXCNT0, uo.csr_rdata); uin_.csr_addr = CSR_RXCNT1; inj_st_ = 3; break;
+      case 3: inj_chk_(CSR_RXCNT1, uo.csr_rdata); inj_i_++; inj_st_ = 0; break;
+      case 4: uin_.csr_addr = CSR_RXCNT0; inj_st_ = 5; break;
+      case 5: inj_chk_(CSR_RXCNT0, uo.csr_rdata); results[sc_].rx0 = uo.csr_rdata;
+              uin_.csr_addr = CSR_RXCNT1; inj_st_ = 6; break;
+      case 6: inj_chk_(CSR_RXCNT1, uo.csr_rdata); results[sc_].rx1 = uo.csr_rdata;
+              uin_.csr_addr = CSR_ERR; inj_st_ = 7; break;
+      case 7: rnd_check_read_(CSR_ERR, uo.csr_rdata);
+              phase_ = P_DRAIN; drain_cnt_ = 0; break;      // P_DRAIN -> P_RECORD (PMCNT) as usual
+    }
+  }
+  void inj_chk_(int addr, uint32_t d) { rnd_check_read_(addr, d); }
 
   void finish_() {
     // trim the extra pushed result (sc_ == 5 path not reached) — handled by guard

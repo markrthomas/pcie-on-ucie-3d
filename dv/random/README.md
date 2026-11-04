@@ -22,6 +22,28 @@ plus the golden model `dv/common/scenarios.py:expected_rand()` (frames/bytes/fli
 `+rand +seed= +frames= +maxlen= +gap= +ready=`.  Without `+rand` the env runs the five fixed
 scenarios exactly as before (`make -C dv/vlt scen` + crosscheck unchanged).
 
+### B1 / B2 knobs (added 2026-11-04; drawn after the five above, absent in an old corpus entry = 0)
+Plusargs `+ctl= +nctl= +mid= +csr= +ncfg= +nrx=` (`rr.py one --ctl .. --nctl .. --mid .. --csr .. --ncfg .. --nrx ..`).
+- `ctl` 0 none | 1 pm_cycle | 2 speed_change | 3 mix (per seed bit, `scenarios.rand_ops`); `nctl` 1..3 ops at frame
+  boundaries `b_i = frames*(i+1)/(nctl+1)`.  `mid=0`: segment sent, drained, op, next segment.  `mid=1`: every frame is
+  queued up front and the op fires when `b_i` frames were received, i.e. with later frames in flight (the ingress gate
+  must hold them; payload/length/crc32 are still checked end to end).  Golden: pmcnt += 2 (pm_cycle) / 4 (speed_change).
+- `csr` % per cycle of random CSR traffic while frames/ops are in progress: reads of all 7 registers, unaligned and
+  unmapped addresses (must read 0), W1C writes to ERR, reserved-width CTRL writes (whole write ignored, ERR[3]), writes
+  to RO/unmapped addresses (no effect), plus exactly `ncfg` SPEEDCFG writes (golden pmcnt += 1 each; checked against a
+  register model: CTRL/SPEEDCFG/ERR/RXCNT/PMCNT/STATUS, and the sideband write is checked for address+data+count).
+  STATUS may legally read ST_DRAIN (busy) right after an op while the datapath is not idle; everything else is fixed.
+- `nrx` Rx-side injections at the quiescent end of the run (type `(seed+7k)%5`): 0 stray data beat (lock+1), 1 start_flit
+  mid-flit (lock+2), 2 valid dropped mid-flit (lock+1), 3 orphan flit w/o sof (bad+1), 4 sof mid-frame (aborted+1; the
+  sink must see exactly one tuser abort frame and then the 240 B good frame, compared byte for byte).  Deltas were
+  measured on the RTL (cf. `cov_main.cpp`) and live in `adapter_bfm.h:inj_delta_` AND `scenarios.RX_INJ_DELTA`.
+  RXCNT0/1 are read back and compared after every injection and at the end (`rxcnt0/rxcnt1` also in results.json, compared
+  with `expected_rand`; a clean run must read all-zero Rx counters).  The loopback is cut while an injection (and any
+  Tx flit that started meanwhile, e.g. FC credit-only) runs.  Overflow (dropped_flits) is not injected: its count is
+  not exactly predictable.
+Limits: injections are not mid-traffic (they would corrupt in-flight real flits); no ERR[0..2] stimulus (timeouts and
+L0s need muted remote die / L0s requests, cf. `cov_main.cpp`).
+
 Determinism: same seed + knobs gives an identical `results.json` and cycle count regardless of JOBS.
 
 ## Teeth (mutation check, 2026-11-03)

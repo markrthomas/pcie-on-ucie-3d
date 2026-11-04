@@ -175,6 +175,10 @@ corruption/isolation/retention emulation). Documented in `docs/power_intent.md`.
   `rr-test-author`). Draft PRs only; RTL changes → `OPEN_DECISIONS.md`, human merges.
   **Done 2026-11-03:** `make rr-build/rr/rr-triage/rr-replay` working on Verilator (`+rand` scenario,
   golden `expected_rand`); see `dv/random/README.md` for knobs + backlog B1..B4.
+  **Done 2026-11-04 (swarm/2026-11-04-rr-stim):** rr backlog **B1** (pm_cycle/speed_change ops at random
+  frame boundaries, drained or mid-traffic) and **B2** (random CSR traffic + register model, SPEEDCFG
+  writes, Rx-side error injection with RXCNT/sink scoreboard); golden `expected_rand` extended
+  (pmcnt, rxcnt0/1). B3/B4 remain open.
 
 ---
 

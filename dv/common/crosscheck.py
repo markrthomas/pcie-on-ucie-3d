@@ -64,9 +64,12 @@ def main() -> int:
     for n in sorted(rands):          # optional rand section: golden = scenarios.expected_rand(seed, frames, maxlen)
         r = rands[n]
         ctl = int(r.get("ctl", 0))
-        rexp = scenarios.expected_rand(int(r["seed"]), int(r["frames"]), int(r["maxlen"]), ctl)
+        rexp = scenarios.expected_rand(int(r["seed"]), int(r["frames"]), int(r["maxlen"]), ctl,
+                                       nctl=int(r.get("nctl", 0)), ncfg=int(r.get("ncfg", 0)),
+                                       nrx=int(r.get("nrx", 0)))
         print(f"rand (env {n}, seed={r['seed']} frames={r['frames']} maxlen={r['maxlen']} ctl={ctl})")
-        for fld in FIELDS:
+        extra = tuple(f for f in ("rxcnt0", "rxcnt1") if f in envs[n].get("rand", {}))   # B2, if reported
+        for fld in FIELDS + list(extra):
             v = envs[n].get("rand", {}).get(fld, "-")
             hi = rexp.get(fld + "_max")           # B3: not exactly predictable -> [expected, fld_max]
             if hi is not None:
