@@ -13,13 +13,25 @@
    "state": "running",
    "step": 1,
    "msg": "rr-build OK (vlt, vlt-fc); verilator at /opt/verilator/bin"
+  },
+  {
+   "t": "2026-11-04T21:06:44+00:00",
+   "state": "running",
+   "step": 1,
+   "msg": "result jobs=30 fails=0 clusters=0"
   }
  ],
  "task": "make rr-build, then make rr N=30 JOBS=4 SEED=1000",
  "steps": 3,
  "step": 1,
- "updated": "2026-11-04T21:06:36+00:00",
+ "updated": "2026-11-04T21:06:44+00:00",
  "branch": "swarm/2026-11-04-rr",
- "sha": "fc5dfe3",
- "blocker": ""
+ "sha": "01cc354",
+ "blocker": "",
+ "results": {
+  "jobs": 30,
+  "fails": 0,
+  "clusters": 0,
+  "note": "make rr N=30 JOBS=4 SEED=1000; run dv/random/runs/20261104T210637"
+ }
 }
