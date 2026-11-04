@@ -51,9 +51,19 @@ Flipping tdata bit 0 on the `tlast` beat of `rtl/pcie_egress.sv` -> `make rr N=2
 `fail=20`, one cluster `frame payload`; restored -> `fail=0`.  corpus entry 0 (seed 100) is this canary
 (`fixed: true`, not a real RTL bug).
 
+## Teeth for B1/B2 (mutation check, 2026-11-04; each reverted, tree clean afterwards)
+`make rr N=60 JOBS=8 SEED=100`, baseline `fail=0` on the unmutated RTL (and 1500+600+200 more seeds clean):
+- TB: `inj_delta_` type 4 aborted 1->2: `fail=20` (`CSR read 0x14 = 0x10000, model 0x20000`).
+- TB: pm_cycle model +3 instead of +2: `fail=21` (PMCNT mismatch / golden pmcnt).
+- RTL `adapter_rf.sv` RXCNT1 halves swapped: `fail=28`.
+- RTL `adapter_rf.sv` ERR[3] (reserved-width CTRL write) never set: `fail=34`.
+- RTL `adapter_ctrl_fsm.sv` PWR_CHG op not counted (`ev_op_done`): `fail=60`.
+Corpus entries 1 and 2 (`fixed: true`) pin a mid-traffic + CSR + injection mix on vlt-fc and vlt.
+
 ## Backlog (stimulus)
-- B1 randomize pm_cycle / speed_change control ops mid-traffic (`expected_rand` has `ctl`, plan pending).
-- B2 randomize CSR traffic and Rx-side error injection (needs scoreboard extension, cf. `cov_main.cpp`).
+- B1 DONE 2026-11-04 randomize pm_cycle / speed_change control ops mid-traffic (`ctl/nctl/mid`, see above).
+- B2 DONE 2026-11-04 randomize CSR traffic and Rx-side error injection (`csr/ncfg/nrx`, see above).
+  Follow-ups: ERR[0..2] stimulus (muted remote die), dropped_flits overflow injection, true mid-traffic injection.
 - B3 port `+rand` to systemc/iverilog/cocotb/uvm envs once stable; add cross-env rand crosscheck.
 - B4 randomize reset timing and remote-die latencies (LAT/SB_LAT/MB_LAT).
 - `board.py` + `board/*.json` — status board for Swarm B (`tools/swarm/board.py`).

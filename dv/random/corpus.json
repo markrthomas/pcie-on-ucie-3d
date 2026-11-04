@@ -10,6 +10,40 @@
       "note": "teeth canary: caught by last-beat tdata bit-flip mutation of rtl/pcie_egress.sv (frame payload); not a real RTL bug",
       "fixed": true,
       "signature": "frame payload"
+    },
+    {
+      "seed": 1012,
+      "config": "vlt-fc",
+      "frames": 4,
+      "maxlen": 241,
+      "gap": 30,
+      "ready": 100,
+      "ctl": 3,
+      "nctl": 1,
+      "mid": 1,
+      "csr": 5,
+      "ncfg": 4,
+      "nrx": 6,
+      "note": "B1+B2 canary: mid-traffic ctl op + CSR traffic + 6 Rx injections (FC); clean on RTL, guards the stimulus/model",
+      "fixed": true,
+      "signature": ""
+    },
+    {
+      "seed": 1022,
+      "config": "vlt",
+      "frames": 40,
+      "maxlen": 4096,
+      "gap": 10,
+      "ready": 100,
+      "ctl": 2,
+      "nctl": 3,
+      "mid": 0,
+      "csr": 5,
+      "ncfg": 1,
+      "nrx": 3,
+      "note": "B1+B2 canary: 3 speed_changes drained + SPEEDCFG write behind 4 KB frames + Rx injections",
+      "fixed": true,
+      "signature": ""
     }
   ]
 }
