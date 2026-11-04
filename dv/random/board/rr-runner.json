@@ -1,6 +1,6 @@
 {
  "worker": "rr-runner",
- "state": "running",
+ "state": "done",
  "history": [
   {
    "t": "2026-11-04T21:06:22+00:00",
@@ -19,14 +19,20 @@
    "state": "running",
    "step": 1,
    "msg": "result jobs=30 fails=0 clusters=0"
+  },
+  {
+   "t": "2026-11-04T21:06:44+00:00",
+   "state": "done",
+   "step": 3,
+   "msg": "dv/random/runs/20261104T210637/results.jsonl: 30/30 PASS, 0 fail"
   }
  ],
  "task": "make rr-build, then make rr N=30 JOBS=4 SEED=1000",
  "steps": 3,
- "step": 1,
+ "step": 3,
  "updated": "2026-11-04T21:06:44+00:00",
  "branch": "swarm/2026-11-04-rr",
- "sha": "01cc354",
+ "sha": "ebc19da",
  "blocker": "",
  "results": {
   "jobs": 30,
