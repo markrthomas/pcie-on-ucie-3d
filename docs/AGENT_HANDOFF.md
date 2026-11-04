@@ -38,6 +38,15 @@ Read this first (with `docs/PLAN.md`) to resume. Newest state at top.
 `RR_STATUS=present`. See `dv/random/README.md` (contract, knobs, backlog B1..B4). Only vlt runs `+rand`
 so far; `rr-replay` is in `make ci`.
 
+**2026-11-04 (swarm/2026-11-04-rr-stim): B1 + B2 done.** `+rand` now also takes `+ctl +nctl +mid` (control ops
+mid-traffic) and `+csr +ncfg +nrx` (CSR traffic, SPEEDCFG writes, Rx error injection); `rr.py draw()` appends
+the six new knobs after the original five (old corpus entries default them to 0 and replay unchanged).
+Checker additions live in `dv/common/cpp/adapter_bfm.h` (register model `rnd_check_read_`, injected-abort/frame
+expectations in `sink_`, injection state machine `rnd_inj_`) and `scenarios.expected_rand` (pmcnt, rxcnt0/1).
+`crosscheck.py` passes the new rand params to the golden model. No RTL change, no RTL bug found by 2300+ seeds
+(see README mutation table). Remaining: B3 (port `+rand` to other envs; they share `adapter_bfm.h` only for
+systemc), B4 (reset timing / remote latencies), true mid-traffic Rx injection (needs Tx loopback arbitration).
+
 ## Current state (2026-10-19)
 - **M5 complete** (on branch `claude/m1-tx-datapath`). **M0 scaffold** on `main`;
   **M1 Tx / M2 Rx / M3 control plane / M4 five-env + fc + playground** committed on

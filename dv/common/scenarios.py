@@ -89,12 +89,40 @@ def expected() -> dict:
     return res
 
 
+def rand_ops(seed: int, ctl: int, nctl: int) -> list:
+    """B1 control-op plan: 1 = pm_cycle, 2 = speed_change (ctl 3 mixes them by seed bits).
+    Mirrors Harness::rnd_op_ in dv/common/cpp/adapter_bfm.h."""
+    if ctl <= 0:
+        return []
+    return [((2 if (seed >> (i % 31)) & 1 else 1) if ctl == 3 else ctl) for i in range(nctl)]
+
+
+RAND_OP_PMCNT = {1: 2, 2: 4}        # pmcnt ops added by pm_cycle / speed_change (see SCENARIOS)
+
+# B2 Rx-side error injection: type i of injection k is (seed + 7k) % 5; counter deltas
+# (lock_errors, dropped_flits, aborted_frames, bad_flits) per type - see dv/random/README.md.
+RX_INJ_DELTA = {0: (1, 0, 0, 0), 1: (2, 0, 0, 0), 2: (1, 0, 0, 0), 3: (0, 0, 0, 1), 4: (0, 0, 1, 0)}
+
+
+def rand_inj_types(seed: int, nrx: int) -> list:
+    return [(seed + 7 * k) % 5 for k in range(nrx)]
+
+
 def expected_rand(seed: int, frames: int = RAND_FRAMES_DEFAULT, maxlen: int = RAND_MAXLEN_DEFAULT,
-                  ctl: int = 0) -> dict:
-    """Optional ``rand`` scenario: `frames` LCG-length frames, no control plane (M0 baseline;
-    the B3 control-plane machinery is added with the control plane in M3+)."""
+                  ctl: int = 0, nctl: int = 0, ncfg: int = 0, nrx: int = 0, **_ignored) -> dict:
+    """Optional ``rand`` scenario: `frames` LCG-length frames.
+    B1: `nctl` control ops (rand_ops) -> pmcnt += 2 / 4 each; B2: `ncfg` SPEEDCFG writes -> pmcnt += 1
+    each, `nrx` Rx injections -> rxcnt0 = {lock, dropped}, rxcnt1 = {aborted, bad}.
+    The frame stream (frames/bytes/flits/crc32) is independent of all of them."""
     r = _one(lcg_lengths(seed, max(1, frames), max(1, maxlen)))
-    r["pmcnt"] = LINKUP_OPS
+    r["pmcnt"] = (LINKUP_OPS + sum(RAND_OP_PMCNT[o] for o in rand_ops(seed, ctl, nctl if ctl else 0))
+                  + ncfg)
+    tot = [0, 0, 0, 0]
+    for t in rand_inj_types(seed, nrx):
+        for i, d in enumerate(RX_INJ_DELTA[t]):
+            tot[i] += d
+    r["rxcnt0"] = (tot[0] << 16) | tot[1]
+    r["rxcnt1"] = (tot[2] << 16) | tot[3]
     return r
 
 

@@ -65,12 +65,18 @@ static void sample(PcieOut& po, UcieOut& uo) {
 static bool rand_mode = false;
 static uint32_t k_seed = 1;
 static int k_frames = 24, k_maxlen = 2000, k_gap = -1, k_ready = -1;
+// B1/B2 (all off by default): +ctl=0..3 +nctl=N +mid=0|1 (control ops) +csr=PCT +ncfg=N (CSR traffic) +nrx=N (Rx injection)
+static bool k_probe = false;                                   // +probe: debug prints from the BFM
+static int k_ctl = 0, k_nctl = 0, k_mid = 0, k_csr = 0, k_ncfg = 0, k_nrx = 0;
 
 static int run_scen() {
     Harness h(rand_mode ? k_seed * 2654435761u + 1 : 12345);
     if (rand_mode) {
         h.rand_mode = true; h.rand_seed = k_seed; h.rand_frames = k_frames; h.rand_maxlen = k_maxlen;
+        h.rand_ctl = k_ctl; h.rand_nctl = k_nctl; h.rand_mid = k_mid;
+        h.rand_csr = k_csr; h.rand_ncfg = k_ncfg; h.rand_nrx = k_nrx;
     }
+    h.set_probe(k_probe);
     if (k_gap >= 0) h.mac_gap_pct = k_gap;
     if (k_ready >= 0) h.sink_ready_pct = k_ready;
     PcieOut po; UcieOut uo;
@@ -136,6 +142,13 @@ int main(int argc, char** argv) {
         else if (!strncmp(a, "+maxlen=", 8)) k_maxlen = atoi(a + 8);
         else if (!strncmp(a, "+gap=", 5)) k_gap = atoi(a + 5);
         else if (!strncmp(a, "+ready=", 7)) k_ready = atoi(a + 7);
+        else if (!strcmp(a, "+probe")) k_probe = true;
+        else if (!strncmp(a, "+ctl=", 5)) k_ctl = atoi(a + 5);
+        else if (!strncmp(a, "+nctl=", 6)) k_nctl = atoi(a + 6);
+        else if (!strncmp(a, "+mid=", 5)) k_mid = atoi(a + 5);
+        else if (!strncmp(a, "+csr=", 5)) k_csr = atoi(a + 5);
+        else if (!strncmp(a, "+ncfg=", 6)) k_ncfg = atoi(a + 6);
+        else if (!strncmp(a, "+nrx=", 5)) k_nrx = atoi(a + 5);
     }
     int rc = scen ? run_scen() : run_smoke();
     dut->final();

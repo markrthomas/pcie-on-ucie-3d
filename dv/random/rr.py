@@ -91,16 +91,29 @@ def draw(seed):
         "maxlen": r.choice([40, 241, 512, 2000, 4096]),
         "gap": r.choice([0, 0, 10, 30, 60, 90]),      # MAC idle % per beat
         "ready": r.choice([100, 100, 90, 50, 20]),    # sink tready %
+        # B1/B2 knobs, drawn after the originals so the original knobs of a seed never change
+        "ctl": (c := r.choice([0, 0, 1, 2, 3])),      # control ops: none/pm_cycle/speed_change/mix
+        "nctl": r.choice([1, 2, 3]) if c else 0,
+        "mid": r.choice([0, 1]) if c else 0,          # 1: ops fire with later frames in flight
+        "csr": (s := r.choice([0, 0, 5, 20, 50])),    # CSR traffic activity % per cycle
+        "ncfg": r.choice([0, 1, 2, 4]) if s else 0,   # exact # of SPEEDCFG writes
+        "nrx": r.choice([0, 0, 1, 3, 6]),             # Rx-side error injections
     }
 
 
+NEW_KNOBS = ("ctl", "nctl", "mid", "csr", "ncfg", "nrx")      # absent in an old corpus entry = 0
+
+
 def knob_str(k):
-    return f"{k['config']} frames={k['frames']} maxlen={k['maxlen']} gap={k['gap']} ready={k['ready']}"
+    s = f"{k['config']} frames={k['frames']} maxlen={k['maxlen']} gap={k['gap']} ready={k['ready']}"
+    extra = " ".join(f"{n}={k.get(n, 0)}" for n in NEW_KNOBS if k.get(n, 0))
+    return s + (" " + extra if extra else "")
 
 
 def repro_cmd(seed, k):
     return (f"python3 dv/random/rr.py one --seed {seed} --config {k['config']} --frames {k['frames']} "
-            f"--maxlen {k['maxlen']} --gap {k['gap']} --ready {k['ready']}")
+            f"--maxlen {k['maxlen']} --gap {k['gap']} --ready {k['ready']}"
+            + "".join(f" --{n} {k.get(n, 0)}" for n in NEW_KNOBS))
 
 
 def run_job(seed, k, jobdir):
@@ -111,7 +124,9 @@ def run_job(seed, k, jobdir):
     if not os.path.exists(exe):
         return "FAIL", "build missing (run make rr-build)", log
     cmd = [exe, "+rand", f"+seed={seed}", f"+frames={k['frames']}", f"+maxlen={k['maxlen']}",
-           f"+gap={k['gap']}", f"+ready={k['ready']}"]
+           f"+gap={k['gap']}", f"+ready={k['ready']}"] + [f"+{n}={k.get(n, 0)}" for n in NEW_KNOBS]
+    if k.get("probe"):
+        cmd.append("+probe")                 # BFM debug prints (rr.py one --probe)
     with open(log, "w") as lf:
         lf.write(f"# {knob_str(k)} seed={seed}\n# {' '.join(cmd)}\n")
         lf.flush()
@@ -133,8 +148,9 @@ def run_job(seed, k, jobdir):
     try:
         d = json.load(open(os.path.join(jobdir, "logs", "results.json")))
         got = d["scenarios"]["rand"]
-        exp = scenarios.expected_rand(seed, k["frames"], k["maxlen"])
-        for f in FIELDS:
+        exp = scenarios.expected_rand(seed, k["frames"], k["maxlen"], k.get("ctl", 0), nctl=k.get("nctl", 0),
+                                      ncfg=k.get("ncfg", 0), nrx=k.get("nrx", 0))
+        for f in FIELDS + ("rxcnt0", "rxcnt1"):
             if str(got.get(f)) != str(exp[f]):
                 gold_sig = f"golden mismatch: {f}"
                 break
@@ -152,9 +168,10 @@ def run_job(seed, k, jobdir):
 def cmd_one(a):
     seed = a.seed
     k = draw(seed)
-    for f in ("config", "frames", "maxlen", "gap", "ready"):
+    for f in ("config", "frames", "maxlen", "gap", "ready") + NEW_KNOBS:
         if getattr(a, f) is not None:
             k[f] = getattr(a, f)
+    k["probe"] = getattr(a, "probe", False)
     jobdir = os.path.join(RUNS, "one", f"seed{seed}")
     st, sig, log = run_job(seed, k, jobdir)
     print(f"[rr] one seed={seed} {knob_str(k)}: {st} {sig}  ({log})")
@@ -218,7 +235,7 @@ def load_corpus():
 def cmd_promote(a):
     c = load_corpus()
     k = draw(a.seed)
-    for f in ("config", "frames", "maxlen", "gap", "ready"):
+    for f in ("config", "frames", "maxlen", "gap", "ready") + NEW_KNOBS:
         if getattr(a, f) is not None:
             k[f] = getattr(a, f)
     c["entries"].append({"seed": a.seed, **k, "note": a.note or "", "fixed": bool(a.fixed),
@@ -270,10 +287,10 @@ def main(argv):
     def knobs(p):
         p.add_argument("--seed", type=int, required=True)
         p.add_argument("--config", choices=CONFIGS)
-        for n in ("frames", "maxlen", "gap", "ready"):
+        for n in ("frames", "maxlen", "gap", "ready") + NEW_KNOBS:
             p.add_argument("--" + n, type=int)
 
-    p = sp.add_parser("one"); knobs(p); p.set_defaults(fn=cmd_one)
+    p = sp.add_parser("one"); knobs(p); p.add_argument("--probe", action="store_true"); p.set_defaults(fn=cmd_one)
     p = sp.add_parser("promote"); knobs(p)
     p.add_argument("--note"); p.add_argument("--signature"); p.add_argument("--fixed", action="store_true")
     p.set_defaults(fn=cmd_promote)
