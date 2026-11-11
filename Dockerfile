@@ -14,7 +14,7 @@ ARG UBUNTU=ubuntu:24.04
 FROM ${UBUNTU} AS builder
 ARG VERILATOR_REF=v5.050
 ARG YOSYS_REF=47595d984
-ARG SBY_REF=main
+ARG SBY_REF=79fc9eddca5e33a28cc2f2cd19c9825efd9a7255   # SymbiYosys main as of 2026-11-10, pinned
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git make cmake g++ ccache autoconf flex bison libfl-dev \
@@ -73,9 +73,10 @@ ENV PATH=/opt/venv/bin:/opt/verilator/bin:/opt/yosys/bin:/opt/sby/bin:/usr/local
 COPY dv/cocotb/requirements.txt /tmp/requirements.txt
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 # optional: Claude Code CLI for the agent swarm (docker/swarm.sh)
+ARG CLAUDE_CODE_VERSION=2.1.322   # pinned: bump on purpose, in a PR
 RUN if [ "$WITH_CLAUDE" = "1" ]; then \
       apt-get update && apt-get install -y --no-install-recommends nodejs npm gh \
-      && npm install -g @anthropic-ai/claude-code \
+      && npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       && rm -rf /var/lib/apt/lists/*; fi
 
 # ---- full (Railway / local batch; NOT used by GitHub CI) --------------------
