@@ -46,6 +46,14 @@ jobs:
             docker build --target tools -t "${{ steps.tag.outputs.image }}" .
             docker push "${{ steps.tag.outputs.image }}"
           fi
+      # Railway builds docker/Dockerfile.railway FROM this tag (no from-source compile on Railway: its builds stop
+      # at ~40 min).  Only pushes to main move it; PRs never do.  The package must be public (open-source tools only).
+      - name: Tag the toolchain as tools-main (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          img="${{ steps.tag.outputs.image }}"
+          docker buildx imagetools create -t "${img%:*}:tools-main" "$img"
 
   regress:
     needs: build-image
