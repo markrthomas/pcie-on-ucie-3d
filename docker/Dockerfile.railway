@@ -1,0 +1,19 @@
+# docker/Dockerfile.railway - the Railway batch image, built in about a minute.
+#
+# Railway stops any build that runs longer than ~40 minutes, and compiling the toolchain from source can exceed that
+# whenever Railway's layer cache misses.  So Railway compiles nothing: it starts from the toolchain image CI already
+# builds and publishes (.github/workflows/ci.yml, job build-image) and adds the repo on top - the same contents as the Dockerfile `full` stage
+# (minus anything only the swarm needs).  Railway and CI therefore run the same tools.
+#
+# TOOLS_IMAGE: CI re-tags the current toolchain as `tools-main` on every push to main; a Railway service variable of
+# the same name overrides it (e.g. a pinned `tools-<hash>`).  The package must be PUBLIC - Railway cannot pull a
+# private base image during a build - and holds only the open-source toolchain, no repo source.
+# After a merge that changes the Dockerfile, Redeploy once CI has re-tagged `tools-main`.
+ARG TOOLS_IMAGE=ghcr.io/markrthomas/pcie-on-ucie-3d/dv-tools:tools-main
+FROM ${TOOLS_IMAGE}
+
+WORKDIR /repo
+COPY . /repo
+RUN chmod +x docker/*.sh || true
+
+ENTRYPOINT ["/repo/docker/entrypoint.sh"]
