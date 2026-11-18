@@ -15,8 +15,8 @@ on the host; every license-gated flow degrades gracefully (prints a skip, exits
 `~/proj/eth-dj-pcie-pipe7_1-bridge`.
 
 GitHub origin: `markrthomas/pcie-on-ucie-3d`. Work lands via **ready-for-review**
-PRs, merged on green CI (8 jobs: build-image, regress, coverage, systemc, uvm,
-cocotb, formal, crosscheck).
+PRs, merged on green CI (`build-image` + `regress`; the full 8-job tier with the `full-ci` label - see
+"CI cost" below).
 
 ---
 
@@ -114,6 +114,12 @@ a DV env do extra work to produce a number.
 `make rr-replay` (corpus gate, folded into `make ci`). Driver `dv/random/rr.py`; stimulus is the `+rand`
 scenario in `dv/vlt/sim_main.cpp`/`adapter_bfm.h`, checked by the BFM scoreboard + `scenarios.expected_rand()`.
 Knobs, contract and backlog: `dv/random/README.md`. Keep the five fixed scenarios bit-identical.
+
+## CI cost (private repo: Actions minutes are capped)
+PRs and pushes to `main` run only `build-image` + `regress`; the heavy tier (coverage, systemc, uvm, cocotb,
+formal, crosscheck) runs when the PR has the **`full-ci`** label or on Actions -> ci -> Run workflow. Railway runs
+the full gate after every merge to `main` (results on `metrics-data`). Docs-only changes skip CI; a newer push
+to a PR cancels its older run. Before merging RTL/DV changes, add `full-ci` (or check the Railway result).
 
 ## Agent swarms (repo notes)
 The swarm itself is the shared kit described in the block below; this repo's profile is `.claude/swarm.env`

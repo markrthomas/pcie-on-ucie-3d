@@ -12,12 +12,20 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'doc/**', 'LICENSE*', '.claude/**']   # docs-only pushes don't run CI
   pull_request:
+    types: [opened, synchronize, reopened, labeled]   # `labeled`: adding full-ci re-runs it
+    paths-ignore: ['**/*.md', 'docs/**', 'doc/**', 'LICENSE*', '.claude/**']   # docs-only pushes don't run CI
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
+
+# A newer push to the same PR cancels its older run (saves Actions minutes on this private repo).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-image:
@@ -77,6 +85,9 @@ jobs:
 
   coverage:
     needs: [build-image, regress]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.image }}
@@ -96,6 +107,9 @@ jobs:
 
   systemc:
     needs: [build-image, regress]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.image }}
@@ -110,6 +124,9 @@ jobs:
 
   uvm:
     needs: [build-image, regress]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.image }}
@@ -124,6 +141,9 @@ jobs:
 
   cocotb:
     needs: [build-image, regress]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.image }}
@@ -142,6 +162,9 @@ jobs:
 
   formal:
     needs: [build-image, regress]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.image }}
@@ -155,6 +178,9 @@ jobs:
   # Bare runner (no container): consumes the envs' results and checks agreement.
   crosscheck:
     needs: [regress, coverage, systemc, uvm, cocotb]
+    # Heavy tier: on request only - Actions > Run workflow, or the `full-ci` label on a PR.  Railway runs the full
+    # gate after every merge to main, so push-to-main skips it here (private repo: Actions minutes are capped).
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
